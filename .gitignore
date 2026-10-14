@@ -65,6 +65,7 @@ Thumbs.db
 *.tmp
 *.bak
 *.swp
+*.vsix
 
 # Large datasets
 backend/Dementia_dataset.zip

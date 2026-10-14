@@ -6,8 +6,10 @@ from app.api import deps
 from app.core import security
 from app.core.config import settings
 from app.models.user import User
+from app.models.domain import Doctor
 from app.schemas.user import UserCreate, UserResponse, UserLogin
 from app.schemas.token import Token
+from app.schemas.doctor import DoctorRegister
 from jose import jwt, JWTError
 
 router = APIRouter()
@@ -64,3 +66,32 @@ def refresh_token(refresh_token: str, db: Session = Depends(deps.get_db)):
 @router.get("/me", response_model=UserResponse)
 def get_me(current_user: User = Depends(deps.get_current_active_user)):
     return current_user
+
+@router.post("/register-doctor", response_model=UserResponse)
+def register_doctor(doctor_in: DoctorRegister, db: Session = Depends(deps.get_db)):
+    existing = db.query(User).filter(User.email == doctor_in.email).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    hashed_password = security.get_password_hash(doctor_in.password)
+    db_user = User(
+        email=doctor_in.email,
+        hashed_password=hashed_password,
+        full_name=doctor_in.full_name,
+        role="DOCTOR",
+        is_active=True,
+        is_verified=True,
+    )
+    db.add(db_user)
+    db.commit()
+    db.refresh(db_user)
+
+    doctor_profile = Doctor(
+        user_id=db_user.id,
+        specialization=doctor_in.specialization,
+        license_number=doctor_in.license_number,
+        experience_years=doctor_in.experience_years,
+    )
+    db.add(doctor_profile)
+    db.commit()
+    return db_user

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import api from "@/lib/api";
@@ -14,6 +14,25 @@ export default function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  useEffect(() => {
+    const token = localStorage.getItem("access_token");
+    if (token) {
+      api.get("/auth/me")
+        .then((res) => {
+          if (res.data.role === "DOCTOR") {
+            router.replace("/doctor");
+          } else {
+            router.replace("/dashboard");
+          }
+        })
+        .catch(() => {
+          localStorage.removeItem("access_token");
+          localStorage.removeItem("refresh_token");
+          localStorage.removeItem("role");
+        });
+    }
+  }, [router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,6 +53,7 @@ export default function Login() {
 
       const me = await api.get("/auth/me");
       localStorage.setItem("role", me.data.role);
+      localStorage.setItem("user_name", me.data.full_name || "");
 
       if (me.data.role === "DOCTOR") {
         router.push("/doctor");

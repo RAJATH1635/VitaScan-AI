@@ -16,11 +16,15 @@ export default function LayoutWrapper({ children }: { children: React.ReactNode 
     pathname?.startsWith("/login") ||
     pathname?.startsWith("/register");
 
-  if (isAuthRoute) {
+  const isCustomDashboard =
+    pathname?.startsWith("/doctor") ||
+    pathname?.startsWith("/patient");
+
+  if (isAuthRoute || isCustomDashboard) {
     return (
-      <main className="min-h-screen bg-gray-50/50 flex">
+      <div className="min-h-screen w-full flex flex-col">
         {children}
-      </main>
+      </div>
     );
   }
 

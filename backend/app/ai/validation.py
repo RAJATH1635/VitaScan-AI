@@ -213,14 +213,58 @@ def validate_domain_heuristics(file_path: str, disease_type: str) -> dict:
                     "appear to be a valid medical scan. Please upload a proper diagnostic image."
                 )
 
-            # For dementia (MRI) — reject highly saturated colorful images
+            # For dementia (MRI) — reject colorful images, breast cancer scans, or non-MRI scans
             if disease_type.lower() == "dementia":
-                if avg_saturation > 0.35:
+                # Check 1: Saturated color / stained tissue (e.g. breast cancer histopathology)
+                if avg_saturation > 0.15:
                     raise DomainValidationError(
-                        "The uploaded image appears to be a color photograph rather than a brain MRI. "
-                        "The Dementia screening module expects grayscale MRI neuroimaging data. "
-                        "Please upload a compatible brain MRI scan."
+                        "You should upload clear or correct image. The uploaded image does not appear to be a grayscale brain MRI scan."
                     )
+
+                # Check 2: Corner darkness and background ratio
+                # Brain MRIs are centered head scans with dark background around the skull
+                corners = [
+                    np.mean(gray[:16, :16]),
+                    np.mean(gray[:16, -16:]),
+                    np.mean(gray[-16:, :16]),
+                    np.mean(gray[-16:, -16:])
+                ]
+                corners_mean = float(np.mean(corners))
+                dark_ratio = float(np.mean(gray < 35))
+
+                # Check 3: Bilateral brain symmetry
+                left_half = gray[:, :64]
+                right_flipped = np.fliplr(gray[:, 64:])
+                try:
+                    left_std = np.std(left_half)
+                    right_std = np.std(right_flipped)
+                    if left_std > 0 and right_std > 0:
+                        corr = float(np.corrcoef(left_half.flatten(), right_flipped.flatten())[0, 1])
+                    else:
+                        corr = 0.0
+                except Exception:
+                    corr = 0.0
+
+                # Check 4: Detect breast ultrasound or non-MRI structures
+                # (ultrasounds have bright corners/tissue throughout and lack brain symmetry)
+                if (corners_mean > 50.0 and dark_ratio < 0.15) or (dark_ratio < 0.08) or (corr < 0.35 and corners_mean > 35.0):
+                    is_breast_cancer = False
+                    try:
+                        from app.ai.breast_cancer.predictor import predict_breast_cancer
+                        bc_res = predict_breast_cancer(file_path)
+                        if bc_res and bc_res.get("confidence", 0) > 65.0:
+                            is_breast_cancer = True
+                    except Exception:
+                        pass
+
+                    if is_breast_cancer:
+                        raise DomainValidationError(
+                            "You should upload clear or correct image. The uploaded image appears to be a breast cancer ultrasound scan rather than a brain MRI."
+                        )
+                    else:
+                        raise DomainValidationError(
+                            "You should upload clear or correct image. The uploaded file does not appear to be a valid brain MRI scan."
+                        )
 
             # For Breast Cancer (Ultrasound) - mostly grayscale, high texture/speckle
             elif disease_type.lower() == "breast_cancer":

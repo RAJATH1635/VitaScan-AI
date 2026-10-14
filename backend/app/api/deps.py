@@ -42,13 +42,13 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
         print("ROLE FROM TOKEN:", role)
 
         if email is None:
-            print("❌ Email is None")
+            print("[ERROR] Email is None")
             raise credentials_exception
 
         token_data = TokenData(email=email, role=role)
 
     except JWTError as e:
-        print("❌ JWT ERROR:", e)
+        print("[ERROR] JWT ERROR:", e)
         raise credentials_exception
 
     user = db.query(User).filter(User.email == token_data.email).first()
@@ -56,10 +56,10 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     print("USER FOUND:", user)
 
     if user is None:
-        print("❌ User not found in database")
+        print("[ERROR] User not found in database")
         raise credentials_exception
 
-    print("✅ Authentication Successful")
+    print("[OK] Authentication Successful")
     print("=========================================\n")
 
     return user

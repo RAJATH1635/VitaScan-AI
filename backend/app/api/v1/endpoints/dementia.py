@@ -34,6 +34,22 @@ async def predict(
     with open(filepath, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
+    try:
+        from app.ai.validation import validate_upload, DomainValidationError, ImageValidationError
+        validate_upload(str(filepath), "dementia")
+    except (DomainValidationError, ImageValidationError) as e:
+        if filepath.exists():
+            filepath.unlink()
+        from fastapi import HTTPException
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error_type": "domain_validation_error",
+                "message": str(e),
+                "suggestion": "You should upload clear or correct image."
+            }
+        )
+
     result = predict_dementia(str(filepath))
 
     PredictionService.save_prediction(

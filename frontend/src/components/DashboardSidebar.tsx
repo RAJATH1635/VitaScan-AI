@@ -2,7 +2,7 @@
 "use client";
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, User, FileText, Upload, Bell, Settings, Users, Clipboard, PlusSquare } from 'lucide-react';
+import { Home, User, FileText, Upload, Bell, Settings, Users, Clipboard, PlusSquare, Calendar } from 'lucide-react';
 
 export default function DashboardSidebar({ role }: { role: string }) {
     const pathname = usePathname();
@@ -13,19 +13,19 @@ export default function DashboardSidebar({ role }: { role: string }) {
         { name: 'Medical History', href: '/patient/history', icon: FileText },
         { name: 'Upload Center', href: '/patient/upload', icon: Upload },
         { name: 'Reports', href: '/patient/reports', icon: Clipboard },
-        //{ name: 'Appointments', href: '/patient/appointments', icon: Calendar },
+        { name: 'Appointments', href: '/patient/appointments', icon: Calendar },
         { name: 'Notifications', href: '/patient/notifications', icon: Bell },
         { name: 'Settings', href: '/patient/settings', icon: Settings },
     ];
 
     const doctorLinks = [
         { name: 'Dashboard', href: '/doctor', icon: Home },
-        { name: 'Profile', href: '/doctor/profile', icon: User },
+        { name: 'Appointments', href: '/doctor/appointments', icon: Calendar },
         { name: 'Patients', href: '/doctor/patients', icon: Users },
         { name: 'Reports', href: '/doctor/reports', icon: Clipboard },
         { name: 'Clinical Notes', href: '/doctor/notes', icon: FileText },
         { name: 'Prescriptions', href: '/doctor/prescriptions', icon: PlusSquare },
-        //{ name: 'Appointments', href: '/doctor/appointments', icon: Calendar },
+        { name: 'Profile', href: '/doctor/profile', icon: User },
         { name: 'Notifications', href: '/doctor/notifications', icon: Bell },
     ];
 
