@@ -18,6 +18,7 @@ from app.api.v1.endpoints import (
     patient_appointments,
     doctor,
     search,
+    notifications,
 )
 
 
@@ -105,3 +106,8 @@ api_router.include_router(
     prefix="/search",
     tags=["search"],
 )
+api_router.include_router(
+    notifications.router,
+    prefix="/notifications",
+    tags=["notifications"],
+)

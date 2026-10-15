@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Stethoscope, FileText, Calendar, User, Activity } from 'lucide-react';
+import { LayoutDashboard, Stethoscope, FileText, Calendar, User, Activity, Bell } from 'lucide-react';
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -12,6 +12,7 @@ export default function Sidebar() {
     { name: 'New Scan', href: '/dashboard/new-scan', icon: Stethoscope },
     { name: 'Reports', href: '/dashboard/reports', icon: FileText },
     { name: 'Appointments', href: '/dashboard/appointments', icon: Calendar },
+    { name: 'Notifications', href: '/dashboard/notifications', icon: Bell },
     { name: 'Profile', href: '/dashboard/profile', icon: User },
   ];
 

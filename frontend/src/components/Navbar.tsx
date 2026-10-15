@@ -16,6 +16,13 @@ import {
   Loader2,
   ArrowRight,
   Sparkles,
+  CheckCheck,
+  Check,
+  Brain,
+  Stethoscope,
+  Pill,
+  Clock,
+  ExternalLink,
 } from "lucide-react";
 import api from "@/lib/api";
 
@@ -45,6 +52,51 @@ export default function Navbar() {
 
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Notification state
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const notificationsContainerRef = useRef<HTMLDivElement>(null);
+
+  const fetchNotifications = async () => {
+    try {
+      const res = await api.get("/notifications");
+      setNotifications(res.data || []);
+    } catch {
+      // ignore
+    }
+  };
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchNotifications();
+    }
+  }, [isAuthenticated, pathname]);
+
+  const markNotificationRead = async (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    try {
+      await api.post(`/notifications/${id}/read`);
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
+      );
+    } catch {
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
+      );
+    }
+  };
+
+  const markAllNotificationsRead = async () => {
+    try {
+      await api.post("/notifications/read-all");
+      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+    } catch {
+      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+    }
+  };
+
+  const unreadCount = notifications.filter((n) => !n.is_read).length;
 
   useEffect(() => {
     const checkAuth = () => {
@@ -87,7 +139,7 @@ export default function Navbar() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Close search dropdown on click outside
+  // Close search & notification dropdowns on click outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (
@@ -95,6 +147,12 @@ export default function Navbar() {
         !searchContainerRef.current.contains(e.target as Node)
       ) {
         setIsSearchOpen(false);
+      }
+      if (
+        notificationsContainerRef.current &&
+        !notificationsContainerRef.current.contains(e.target as Node)
+      ) {
+        setIsNotificationsOpen(false);
       }
     };
 
@@ -437,10 +495,143 @@ export default function Navbar() {
             )}
           </div>
 
-          <button className="relative p-2 text-gray-400 hover:text-blue-600 transition-colors hidden md:block">
-            <Bell size={20} />
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-white"></span>
-          </button>
+          {/* Notifications Bell & Popover Dropdown */}
+          <div className="relative" ref={notificationsContainerRef}>
+            <button
+              type="button"
+              onClick={() => setIsNotificationsOpen((prev) => !prev)}
+              className={`relative p-2 rounded-xl transition-all ${
+                isNotificationsOpen
+                  ? "bg-blue-50 text-blue-600 ring-2 ring-blue-500/20"
+                  : "text-gray-400 hover:text-blue-600 hover:bg-gray-50"
+              }`}
+              title="Notifications"
+            >
+              <Bell size={20} />
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-white shadow-sm animate-pulse">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
+            </button>
+
+            {/* Notifications Dropdown Popover */}
+            {isNotificationsOpen && (
+              <div className="absolute right-0 mt-3 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-150">
+                {/* Header */}
+                <div className="p-4 bg-gradient-to-r from-slate-900 to-blue-950 text-white flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Bell size={18} className="text-cyan-400" />
+                    <span className="font-bold text-sm">Notifications</span>
+                    {unreadCount > 0 && (
+                      <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 border border-cyan-400/30 text-[11px] font-semibold text-cyan-300">
+                        {unreadCount} new
+                      </span>
+                    )}
+                  </div>
+                  {unreadCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={markAllNotificationsRead}
+                      className="text-xs text-cyan-300 hover:text-white font-medium flex items-center gap-1 transition-colors"
+                    >
+                      <CheckCheck size={14} />
+                      <span>Mark all read</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* List */}
+                <div className="max-h-[360px] overflow-y-auto divide-y divide-gray-100">
+                  {notifications.length === 0 ? (
+                    <div className="py-10 text-center text-gray-400 px-4">
+                      <Bell size={32} className="mx-auto mb-2 text-gray-200" />
+                      <p className="text-sm font-semibold text-gray-700">No notifications yet</p>
+                      <p className="text-xs text-gray-400 mt-1">We will alert you about AI scans & appointments.</p>
+                    </div>
+                  ) : (
+                    notifications.slice(0, 5).map((n: any) => {
+                      const isUnread = !n.is_read;
+                      return (
+                        <div
+                          key={n.id}
+                          onClick={() => {
+                            if (isUnread) markNotificationRead(n.id);
+                            if (n.link) {
+                              setIsNotificationsOpen(false);
+                              router.push(n.link);
+                            }
+                          }}
+                          className={`p-3.5 transition-colors cursor-pointer hover:bg-blue-50/50 flex items-start gap-3 ${
+                            isUnread ? "bg-blue-50/30" : "bg-white"
+                          }`}
+                        >
+                          <div
+                            className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border ${
+                              n.type === "scan"
+                                ? "bg-purple-50 text-purple-600 border-purple-200"
+                                : n.type === "appointment"
+                                ? "bg-amber-50 text-amber-600 border-amber-200"
+                                : n.type === "doctor"
+                                ? "bg-emerald-50 text-emerald-600 border-emerald-200"
+                                : "bg-blue-50 text-blue-600 border-blue-200"
+                            }`}
+                          >
+                            {n.type === "scan" ? (
+                              <Brain size={16} />
+                            ) : n.type === "appointment" ? (
+                              <Calendar size={16} />
+                            ) : n.type === "doctor" ? (
+                              <Stethoscope size={16} />
+                            ) : (
+                              <Activity size={16} />
+                            )}
+                          </div>
+
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2">
+                              <p
+                                className={`text-xs font-bold leading-tight ${
+                                  isUnread ? "text-gray-900" : "text-gray-700"
+                                }`}
+                              >
+                                {n.title}
+                              </p>
+                              {isUnread && (
+                                <span className="w-2 h-2 rounded-full bg-blue-600 shrink-0 mt-1"></span>
+                              )}
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1 line-clamp-2 leading-relaxed">
+                              {n.message}
+                            </p>
+                            {n.link && (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-700 mt-1.5">
+                                <span>{n.linkText || "View details"}</span>
+                                <ArrowRight size={11} />
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* Footer link */}
+                <div className="p-2.5 bg-gray-50 border-t border-gray-100 text-center">
+                  <Link
+                    href={userRole === "DOCTOR" ? "/doctor/notifications" : "/dashboard/notifications"}
+                    onClick={() => setIsNotificationsOpen(false)}
+                    className="text-xs font-semibold text-blue-600 hover:text-blue-700 hover:underline inline-flex items-center gap-1 py-1"
+                  >
+                    <span>View all notifications</span>
+                    <ExternalLink size={12} />
+                  </Link>
+                </div>
+              </div>
+            )}
+          </div>
+
 
           <div className="w-px h-8 bg-gray-200 mx-1 hidden md:block"></div>
 

@@ -493,5 +493,118 @@ export function handleMockRequest(config: any): MockResponse | null {
     };
   }
 
+  // 21. NOTIFICATIONS: Get, Read, Read-All, Delete
+  if (path === "/notifications" || path.startsWith("/notifications/")) {
+    const role = localStorage.getItem("role") || "PATIENT";
+    const storageKey = `vitascan_notifications_${role.toLowerCase()}`;
+    const stored = localStorage.getItem(storageKey);
+    let items = stored
+      ? JSON.parse(stored)
+      : role === "DOCTOR"
+      ? [
+          {
+            id: "notif-doc-1",
+            type: "appointment",
+            title: "New Patient Appointment Scheduled",
+            message: "Patient RAJATH B G scheduled a consultation for Dementia & Cognitive Review on Oct 18, 2026.",
+            created_at: new Date(Date.now() - 3600000).toISOString(),
+            is_read: false,
+            link: "/doctor/appointments",
+            linkText: "View Appointment",
+          },
+          {
+            id: "notif-doc-2",
+            type: "scan",
+            title: "AI Screening Awaiting Validation",
+            message: "A new brain MRI screening with high confidence (96.4%) is pending your clinical review.",
+            created_at: new Date(Date.now() - 3600000 * 5).toISOString(),
+            is_read: false,
+            link: "/doctor/reports",
+            linkText: "Review Scan",
+          },
+          {
+            id: "notif-doc-3",
+            type: "system",
+            title: "Doctor Workspace Verified",
+            message: "Your medical credentials are authenticated. You can prescribe treatments and write notes.",
+            created_at: new Date(Date.now() - 86400000).toISOString(),
+            is_read: true,
+            link: "/doctor/profile",
+            linkText: "View Profile",
+          },
+        ]
+      : [
+          {
+            id: "notif-pat-1",
+            type: "scan",
+            title: "AI Screening Analysis Ready",
+            message: "Your Dementia MRI scan analysis has finished with 96.4% confidence. 3 specialist doctors are available for consultation.",
+            created_at: new Date(Date.now() - 3600000 * 2).toISOString(),
+            is_read: false,
+            link: "/dashboard/reports/rep-dem-101",
+            linkText: "View Clinical Report",
+          },
+          {
+            id: "notif-pat-2",
+            type: "appointment",
+            title: "Specialist Appointment Confirmed",
+            message: "Your appointment with Dr. Ramesh Iyer at Manipal Hospital, Bengaluru is scheduled for Oct 18, 2026.",
+            created_at: new Date(Date.now() - 86400000).toISOString(),
+            is_read: false,
+            link: "/dashboard/appointments",
+            linkText: "Manage Appointments",
+          },
+          {
+            id: "notif-pat-3",
+            type: "doctor",
+            title: "Specialist Referrals Available",
+            message: "12 specialist doctors in Bengaluru, Mumbai, Chennai, and other locations are available for immediate teleconsultation.",
+            created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
+            is_read: true,
+            link: "/dashboard/appointments",
+            linkText: "Explore Specialists",
+          },
+          {
+            id: "notif-pat-4",
+            type: "prescription",
+            title: "Prescription Issued by Doctor",
+            message: "Dr. Sunita Deshmukh has prescribed a cognitive support protocol. Check your medical profile for instructions.",
+            created_at: new Date(Date.now() - 86400000 * 3).toISOString(),
+            is_read: true,
+          },
+        ];
+
+    if (path === "/notifications" && method === "get") {
+      return { status: 200, data: items };
+    }
+
+    if (path.endsWith("/read") && method === "post") {
+      const notifId = path.replace("/notifications/", "").replace("/read", "");
+      items = items.map((n: any) => (n.id === notifId ? { ...n, is_read: true } : n));
+      localStorage.setItem(storageKey, JSON.stringify(items));
+      const found = items.find((n: any) => n.id === notifId) || { id: notifId, is_read: true };
+      return { status: 200, data: found };
+    }
+
+    if (path === "/notifications/read-all" && method === "post") {
+      items = items.map((n: any) => ({ ...n, is_read: true }));
+      localStorage.setItem(storageKey, JSON.stringify(items));
+      return { status: 200, data: { message: "All notifications marked as read." } };
+    }
+
+    if (method === "delete") {
+      if (path === "/notifications") {
+        localStorage.setItem(storageKey, JSON.stringify([]));
+        return { status: 200, data: { message: "All notifications cleared." } };
+      } else {
+        const notifId = path.replace("/notifications/", "");
+        items = items.filter((n: any) => n.id !== notifId);
+        localStorage.setItem(storageKey, JSON.stringify(items));
+        return { status: 200, data: { message: "Notification deleted." } };
+      }
+    }
+  }
+
   return null;
 }
+
