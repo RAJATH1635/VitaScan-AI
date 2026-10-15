@@ -6,8 +6,10 @@ import Link from "next/link";
 import api from "@/lib/api";
 import { 
   UploadCloud, CheckCircle2, AlertCircle, Activity, Brain, 
-  Droplet, ActivitySquare, ShieldCheck, X, FileImage, Cpu, ChevronRight, Check, ArrowRight
+  Droplet, ActivitySquare, ShieldCheck, X, FileImage, Cpu, ChevronRight, Check, ArrowRight,
+  MapPin, Star, Building2, Stethoscope, Phone, Award, Clock, Calendar
 } from "lucide-react";
+import { getReferralDoctorsForDisease } from "@/lib/referralDoctors";
 
 export default function NewScan() {
   const router = useRouter();
@@ -265,6 +267,110 @@ export default function NewScan() {
                     </div>
                   )}
                 </div>
+
+                {/* ── RECOMMENDED SPECIALIST REFERRALS (3 LOCATIONS) ── */}
+                {(() => {
+                  const referralDoctors = getReferralDoctorsForDisease(category || result.disease || "");
+                  return (
+                    <div className="mt-10 pt-8 border-t border-gray-100">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6">
+                        <div>
+                          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold mb-2 border border-blue-100">
+                            <Stethoscope size={13} />
+                            <span>Clinical Referral • 3 Distinct Locations</span>
+                          </div>
+                          <h3 className="text-2xl font-bold text-gray-900 tracking-tight">
+                            Recommended Specialist Doctors
+                          </h3>
+                          <p className="text-xs text-gray-500 font-medium mt-1">
+                            Based on your {getCategoryName(category)} scan results, we recommend consulting one of these verified specialists across 3 different locations.
+                          </p>
+                        </div>
+                        <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 self-start sm:self-auto shrink-0">
+                          3 Specialists Available
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                        {referralDoctors.map((doc) => (
+                          <div
+                            key={doc.id}
+                            className="bg-white rounded-2xl p-5 border border-gray-200/90 shadow-sm hover:shadow-lg hover:border-blue-400 transition-all flex flex-col justify-between group"
+                          >
+                            <div>
+                              {/* Top Bar: Badge & Rating */}
+                              <div className="flex items-center justify-between mb-3">
+                                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-100 truncate max-w-[150px]">
+                                  {doc.badge}
+                                </span>
+                                <div className="flex items-center gap-1 text-xs font-bold text-amber-500 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-100">
+                                  <Star size={12} fill="currentColor" />
+                                  <span>{doc.rating}</span>
+                                </div>
+                              </div>
+
+                              {/* Doctor Name & Specialty */}
+                              <div className="flex items-start gap-3 mb-3">
+                                <div className={`w-11 h-11 rounded-xl bg-gradient-to-tr ${doc.avatarColor} text-white font-bold flex items-center justify-center shrink-0 shadow-md text-sm`}>
+                                  {doc.name.split(" ").map((n) => n[0]).slice(0, 2).join("")}
+                                </div>
+                                <div className="min-w-0">
+                                  <h4 className="font-bold text-gray-900 text-sm truncate group-hover:text-blue-600 transition-colors">
+                                    {doc.name}
+                                  </h4>
+                                  <p className="text-[11px] font-medium text-gray-400 truncate">
+                                    {doc.qualification}
+                                  </p>
+                                  <p className="text-xs font-semibold text-blue-600 mt-0.5 line-clamp-1">
+                                    {doc.specialization}
+                                  </p>
+                                </div>
+                              </div>
+
+                              {/* Location & Hospital */}
+                              <div className="bg-slate-50 rounded-xl p-3 space-y-2 mb-4 border border-slate-100 text-xs">
+                                <div className="flex items-center gap-2 text-gray-700">
+                                  <Building2 size={13} className="text-gray-400 shrink-0" />
+                                  <span className="font-semibold truncate">{doc.hospital}</span>
+                                </div>
+                                <div className="flex items-center gap-2 text-gray-600 font-medium">
+                                  <MapPin size={13} className="text-rose-500 shrink-0" />
+                                  <span className="font-bold text-gray-900">{doc.location}</span>
+                                </div>
+                                <div className="flex items-center gap-2 text-gray-500 text-[11px]">
+                                  <Award size={13} className="text-amber-500 shrink-0" />
+                                  <span>{doc.experience} • {doc.reviewsCount} reviews</span>
+                                </div>
+                              </div>
+
+                              <p className="text-[11px] text-gray-500 leading-relaxed line-clamp-2 mb-4">
+                                {doc.bio}
+                              </p>
+                            </div>
+
+                            {/* Action CTA */}
+                            <div className="pt-3 border-t border-gray-100 flex items-center gap-2">
+                              <Link
+                                href={`/dashboard/appointments?doctor=${encodeURIComponent(doc.name)}&disease=${encodeURIComponent(getCategoryName(category))}`}
+                                className="flex-1 inline-flex items-center justify-center gap-1.5 py-2.5 px-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md shadow-blue-500/20 transition-all hover:scale-[1.02]"
+                              >
+                                <Calendar size={13} />
+                                <span>Book Visit</span>
+                              </Link>
+                              <a
+                                href={`tel:${doc.phone}`}
+                                title={doc.phone}
+                                className="p-2.5 bg-gray-50 hover:bg-gray-100 text-gray-600 hover:text-blue-600 rounded-xl border border-gray-200 transition-colors"
+                              >
+                                <Phone size={13} />
+                              </a>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 <div className="mt-8 flex flex-col md:flex-row gap-4">
                   <Link href="/dashboard/reports" className="flex-1 inline-flex justify-center items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold p-4 rounded-xl shadow-lg shadow-blue-500/20 transition-all hover:-translate-y-0.5 text-lg">

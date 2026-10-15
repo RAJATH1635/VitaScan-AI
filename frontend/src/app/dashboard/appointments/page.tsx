@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import api from "@/lib/api";
 import { 
   Calendar, Clock, User, FileText, CheckCircle2, 
   AlertCircle, Activity, Plus, FileQuestion, AlertTriangle, Loader2 
 } from "lucide-react";
+import { REFERRAL_DOCTORS } from "@/lib/referralDoctors";
 
 interface Appointment {
   id: string;
@@ -17,7 +19,9 @@ interface Appointment {
   status: string;
 }
 
-export default function Appointments() {
+function AppointmentsContent() {
+  const searchParams = useSearchParams();
+
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -31,6 +35,19 @@ export default function Appointments() {
     appointment_time: "",
     notes: "",
   });
+
+  // Pre-fill doctor and disease if coming from scan referral or report
+  useEffect(() => {
+    const docParam = searchParams.get("doctor");
+    const disParam = searchParams.get("disease");
+    if (docParam || disParam) {
+      setForm((prev) => ({
+        ...prev,
+        doctor: docParam || prev.doctor,
+        disease: disParam || prev.disease,
+      }));
+    }
+  }, [searchParams]);
 
   async function loadAppointments() {
     setLoading(true);
@@ -252,10 +269,43 @@ export default function Appointments() {
                   onChange={(e) => setForm({ ...form, doctor: e.target.value })}
                 >
                   <option value="" disabled>Choose a specialist...</option>
-                  <option value="General Physician">General Physician</option>
-                  <option value="Neurologist">Neurologist</option>
-                  <option value="Oncologist">Oncologist</option>
-                  <option value="Hematologist">Hematologist</option>
+
+                  <optgroup label="🧠 Dementia & Cognitive Neurology">
+                    {REFERRAL_DOCTORS.dementia.map((d) => (
+                      <option key={d.id} value={d.name}>
+                        {d.name} — {d.hospital} ({d.location})
+                      </option>
+                    ))}
+                  </optgroup>
+
+                  <optgroup label="🎗️ Breast Oncology & Cancer Care">
+                    {REFERRAL_DOCTORS.breast_cancer.map((d) => (
+                      <option key={d.id} value={d.name}>
+                        {d.name} — {d.hospital} ({d.location})
+                      </option>
+                    ))}
+                  </optgroup>
+
+                  <optgroup label="🔬 Malaria & Infectious Diseases">
+                    {REFERRAL_DOCTORS.malaria.map((d) => (
+                      <option key={d.id} value={d.name}>
+                        {d.name} — {d.hospital} ({d.location})
+                      </option>
+                    ))}
+                  </optgroup>
+
+                  <optgroup label="🩸 Anemia & Clinical Hematology">
+                    {REFERRAL_DOCTORS.anemia.map((d) => (
+                      <option key={d.id} value={d.name}>
+                        {d.name} — {d.hospital} ({d.location})
+                      </option>
+                    ))}
+                  </optgroup>
+
+                  <optgroup label="General Medicine">
+                    <option value="Dr. Ramesh">Dr. Ramesh — General Medicine</option>
+                    <option value="General Physician">General Physician (Default On-Duty)</option>
+                  </optgroup>
                 </select>
               </div>
             </div>
@@ -324,5 +374,19 @@ export default function Appointments() {
       {renderContent()}
 
     </div>
+  );
+}
+
+export default function Appointments() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center min-h-[400px]">
+          <Loader2 className="animate-spin text-blue-600" size={32} />
+        </div>
+      }
+    >
+      <AppointmentsContent />
+    </Suspense>
   );
 }

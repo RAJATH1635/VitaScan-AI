@@ -13,8 +13,10 @@ import {
 } from "@/lib/dateUtils";
 import { 
   ArrowLeft, CheckCircle2, ShieldAlert, Cpu, FileText, Download, 
-  ImageIcon, AlertCircle, Activity, Brain, Droplet, ActivitySquare, ShieldCheck
+  ImageIcon, AlertCircle, Activity, Brain, Droplet, ActivitySquare, ShieldCheck,
+  MapPin, Star, Building2, Phone, Award, Stethoscope, Calendar
 } from "lucide-react";
+import { getReferralDoctorsForDisease } from "@/lib/referralDoctors";
 
 interface Report {
   id: string;
@@ -293,6 +295,22 @@ export default function ReportDetailsPage() {
         yPos += 5;
       });
 
+      // 3 RECOMMENDED SPECIALISTS (3 LOCATIONS)
+      yPos += 3;
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(10);
+      pdf.setTextColor(15, 23, 42);
+      pdf.text("RECOMMENDED SPECIALISTS (3 LOCATIONS):", margin, yPos);
+      yPos += 5;
+
+      const docs = getReferralDoctorsForDisease(report.disease);
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(8);
+      docs.forEach(doc => {
+        pdf.text(`• ${doc.name} - ${doc.hospital}, ${doc.location}`, margin + 3, yPos);
+        yPos += 4;
+      });
+
       // FOOTER SAFETY WARNING
       const footerY = pageHeight - 35;
       pdf.setFillColor(241, 245, 249);
@@ -473,6 +491,90 @@ export default function ReportDetailsPage() {
                    ))}
                  </ul>
                </div>
+            </div>
+          </div>
+
+          {/* Recommended Specialists (3 Locations) */}
+          <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-8">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6 border-b border-gray-100 pb-4">
+              <div>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-semibold mb-2 border border-blue-100">
+                  <Stethoscope size={13} />
+                  <span>Clinical Decision Support • 3 Verified Locations</span>
+                </div>
+                <h3 className="text-xl font-extrabold text-gray-900 tracking-tight">
+                  Recommended Specialist Referrals
+                </h3>
+                <p className="text-xs text-gray-500 font-medium mt-1">
+                  Connect with experienced clinical specialists across multiple cities for second opinions and treatment protocols.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              {getReferralDoctorsForDisease(report.disease).map((doc) => (
+                <div
+                  key={doc.id}
+                  className="bg-slate-50/70 rounded-2xl p-5 border border-slate-200/80 hover:border-blue-400 hover:bg-white hover:shadow-md transition-all flex flex-col justify-between group"
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-white text-blue-700 border border-blue-100 truncate max-w-[140px]">
+                        {doc.badge}
+                      </span>
+                      <div className="flex items-center gap-1 text-xs font-bold text-amber-600 bg-white px-2 py-0.5 rounded-full border border-amber-100">
+                        <Star size={11} fill="currentColor" />
+                        <span>{doc.rating}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-2.5 mb-3">
+                      <div className={`w-10 h-10 rounded-xl bg-gradient-to-tr ${doc.avatarColor} text-white font-bold flex items-center justify-center shrink-0 shadow-sm text-xs`}>
+                        {doc.name.split(" ").map((n) => n[0]).slice(0, 2).join("")}
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="font-bold text-gray-900 text-sm truncate group-hover:text-blue-600 transition-colors">
+                          {doc.name}
+                        </h4>
+                        <p className="text-[11px] text-gray-400 truncate">{doc.qualification}</p>
+                        <p className="text-xs font-semibold text-blue-600 line-clamp-1">{doc.specialization}</p>
+                      </div>
+                    </div>
+
+                    <div className="bg-white rounded-xl p-3 space-y-1.5 mb-3 border border-slate-100 text-xs">
+                      <div className="flex items-center gap-1.5 text-gray-700">
+                        <Building2 size={12} className="text-gray-400 shrink-0" />
+                        <span className="font-semibold truncate">{doc.hospital}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-gray-600 font-medium">
+                        <MapPin size={12} className="text-rose-500 shrink-0" />
+                        <span className="font-bold text-gray-900">{doc.location}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-gray-500 text-[11px]">
+                        <Award size={12} className="text-amber-500 shrink-0" />
+                        <span>{doc.experience}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-200/60 flex items-center gap-2">
+                    <Link
+                      href={`/dashboard/appointments?doctor=${encodeURIComponent(doc.name)}&disease=${encodeURIComponent(report.disease)}`}
+                      className="flex-1 inline-flex items-center justify-center gap-1 py-2 px-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all"
+                    >
+                      <Calendar size={12} />
+                      <span>Book Consultation</span>
+                    </Link>
+                    <a
+                      href={`tel:${doc.phone}`}
+                      title={doc.phone}
+                      className="p-2 bg-white hover:bg-gray-100 text-gray-600 hover:text-blue-600 rounded-xl border border-gray-200 transition-colors"
+                    >
+                      <Phone size={12} />
+                    </a>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 
