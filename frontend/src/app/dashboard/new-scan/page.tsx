@@ -39,11 +39,38 @@ export default function NewScan() {
     }
   }, [file]);
 
+  const detectCategoryFromName = (name: string) => {
+    const n = name.toLowerCase();
+    if (n.includes("dementia") || n.includes("brain") || n.includes("mri") || n.includes("alzheimer")) {
+      return "dementia";
+    }
+    if (n.includes("breast") || n.includes("cancer") || n.includes("histo") || n.includes("tumor") || n.includes("biopsy")) {
+      return "breast_cancer";
+    }
+    if (n.includes("malaria") || n.includes("smear") || n.includes("blood") || n.includes("parasite")) {
+      return "malaria";
+    }
+    if (n.includes("anemia") || n.includes("iron") || n.includes("cbc") || n.includes("hemoglobin")) {
+      return "anemia";
+    }
+    return "";
+  };
+
+  const handleFileSelect = (selectedFile: File) => {
+    setFile(selectedFile);
+    setError("");
+    if (!category) {
+      const detected = detectCategoryFromName(selectedFile.name);
+      if (detected) {
+        setCategory(detected);
+      }
+    }
+  };
+
   const handleFileDrop = (e: React.DragEvent) => {
     e.preventDefault();
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      setFile(e.dataTransfer.files[0]);
-      setError("");
+      handleFileSelect(e.dataTransfer.files[0]);
     }
   };
 
@@ -420,10 +447,84 @@ export default function NewScan() {
               
               <div className="p-8 md:p-10 space-y-10">
                 {/* Category Selection */}
-                <div>
-                  <label className="block text-lg font-bold text-gray-900 mb-1">Select Screening Type</label>
-                  <p className="text-gray-500 font-medium mb-4">Choose the type of analysis you want VitaScan AI to perform.</p>
+                <div id="screening-type-section" className="scroll-mt-6">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-lg font-bold text-gray-900">Step 1: Select Screening Type</label>
+                    {category && (
+                      <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200 flex items-center gap-1">
+                        <CheckCircle2 size={13} className="text-emerald-600" /> Selected
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-gray-500 font-medium mb-4 text-sm">Choose the disease category you want VitaScan AI to screen.</p>
                   
+                  {/* 4 Interactive Quick Cards */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+                    <button
+                      type="button"
+                      onClick={() => { setCategory("dementia"); setError(""); }}
+                      className={`p-3.5 rounded-2xl border text-left transition-all ${
+                        category === "dementia"
+                          ? "border-purple-500 bg-purple-50 text-purple-900 shadow-sm ring-2 ring-purple-500/30 scale-[1.02]"
+                          : "border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-700"
+                      }`}
+                    >
+                      <div className="w-8 h-8 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center mb-2">
+                        <Brain size={18} />
+                      </div>
+                      <p className="font-bold text-xs">Dementia</p>
+                      <p className="text-[10px] text-gray-500">Brain MRI Scan</p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => { setCategory("breast_cancer"); setError(""); }}
+                      className={`p-3.5 rounded-2xl border text-left transition-all ${
+                        category === "breast_cancer"
+                          ? "border-pink-500 bg-pink-50 text-pink-900 shadow-sm ring-2 ring-pink-500/30 scale-[1.02]"
+                          : "border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-700"
+                      }`}
+                    >
+                      <div className="w-8 h-8 rounded-xl bg-pink-100 text-pink-600 flex items-center justify-center mb-2">
+                        <ActivitySquare size={18} />
+                      </div>
+                      <p className="font-bold text-xs">Breast Cancer</p>
+                      <p className="text-[10px] text-gray-500">Histopathology</p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => { setCategory("malaria"); setError(""); }}
+                      className={`p-3.5 rounded-2xl border text-left transition-all ${
+                        category === "malaria"
+                          ? "border-amber-500 bg-amber-50 text-amber-900 shadow-sm ring-2 ring-amber-500/30 scale-[1.02]"
+                          : "border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-700"
+                      }`}
+                    >
+                      <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center mb-2">
+                        <Activity size={18} />
+                      </div>
+                      <p className="font-bold text-xs">Malaria</p>
+                      <p className="text-[10px] text-gray-500">Blood Smear</p>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => { setCategory("anemia"); setError(""); }}
+                      className={`p-3.5 rounded-2xl border text-left transition-all ${
+                        category === "anemia"
+                          ? "border-rose-500 bg-rose-50 text-rose-900 shadow-sm ring-2 ring-rose-500/30 scale-[1.02]"
+                          : "border-gray-200 bg-gray-50 hover:bg-gray-100 text-gray-700"
+                      }`}
+                    >
+                      <div className="w-8 h-8 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center mb-2">
+                        <Droplet size={18} />
+                      </div>
+                      <p className="font-bold text-xs">Anemia</p>
+                      <p className="text-[10px] text-gray-500">Clinical Labs</p>
+                    </button>
+                  </div>
+
                   <div className="relative group">
                     <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none transition-colors group-focus-within:text-blue-600 text-gray-400">
                       {category ? getCategoryIcon(category) : <Activity size={20} />}
@@ -432,13 +533,13 @@ export default function NewScan() {
                       required 
                       value={category} 
                       onChange={e=>setCategory(e.target.value)} 
-                      className="block w-full pl-12 pr-10 py-4 bg-gray-50 border border-gray-200 rounded-2xl text-base font-semibold text-gray-800 focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 hover:bg-gray-100 transition-all outline-none appearance-none cursor-pointer shadow-sm"
+                      className="block w-full pl-12 pr-10 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-semibold text-gray-800 focus:bg-white focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 hover:bg-gray-100 transition-all outline-none appearance-none cursor-pointer shadow-sm"
                     >
-                      <option value="" disabled>-- Choose Diagnostic Category --</option>
-                      <option value="dementia">Dementia (MRI Image)</option>
+                      <option value="" disabled>-- Or Choose From Dropdown --</option>
+                      <option value="dementia">Dementia (Brain MRI Scan)</option>
                       <option value="breast_cancer">Breast Cancer (Histopathology Image)</option>
-                      <option value="malaria">Malaria (Blood Smear Image)</option>
-                      <option value="anemia">Anemia (Clinical Data / Image)</option>
+                      <option value="malaria">Malaria (Blood Smear Microscopy)</option>
+                      <option value="anemia">Anemia (Clinical Laboratory Data / Image)</option>
                     </select>
                     <div className="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none text-gray-400">
                       <ChevronRight size={20} className="transform rotate-90" />
@@ -448,7 +549,7 @@ export default function NewScan() {
 
                 {/* Upload Area Component */}
                 <div>
-                  <label className="block text-lg font-bold text-gray-900 mb-4">Upload Medical Image</label>
+                  <label className="block text-lg font-bold text-gray-900 mb-4">Step 2: Upload Medical Image</label>
                   
                   {!file ? (
                     <div 
@@ -457,7 +558,13 @@ export default function NewScan() {
                       onDrop={handleFileDrop}
                       className="border-2 border-dashed border-gray-300 rounded-3xl p-12 flex flex-col items-center justify-center text-center hover:bg-blue-50/50 hover:border-blue-400 transition-all cursor-pointer relative min-h-[300px] shadow-sm group"
                     >
-                      <input type="file" required accept="image/*,.pdf" onChange={e => setFile(e.target.files?.[0] || null)} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+                      <input 
+                        type="file" 
+                        required 
+                        accept="image/*,.pdf,.csv" 
+                        onChange={e => { if (e.target.files?.[0]) handleFileSelect(e.target.files[0]); }} 
+                        className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" 
+                      />
                       
                       <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-6 group-hover:bg-blue-100 group-hover:scale-110 transition-all duration-300">
                         <UploadCloud size={40} className="text-gray-400 group-hover:text-blue-500 transition-colors" />
@@ -467,7 +574,7 @@ export default function NewScan() {
                       <p className="text-gray-500 font-medium mb-6">or <span className="text-blue-600 hover:underline">browse files</span> from your computer</p>
                       
                       <div className="flex gap-4 text-xs font-semibold text-gray-400">
-                        <span className="bg-gray-100 px-3 py-1 rounded-md">JPG, PNG, PDF</span>
+                        <span className="bg-gray-100 px-3 py-1 rounded-md">JPG, PNG, PDF, CSV</span>
                         <span className="bg-gray-100 px-3 py-1 rounded-md">Max Size: 50MB</span>
                       </div>
                     </div>
@@ -499,7 +606,12 @@ export default function NewScan() {
                                <button type="button" className="text-sm font-bold text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 px-4 py-2 rounded-lg transition-colors shadow-sm">
                                  Replace file
                                </button>
-                               <input type="file" accept="image/*,.pdf" onChange={e => {if(e.target.files) setFile(e.target.files[0])}} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                               <input 
+                                 type="file" 
+                                 accept="image/*,.pdf,.csv" 
+                                 onChange={e => { if (e.target.files?.[0]) handleFileSelect(e.target.files[0]); }} 
+                                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
+                               />
                              </div>
                              <button type="button" onClick={() => setFile(null)} className="text-sm font-bold text-rose-600 hover:bg-rose-50 px-4 py-2 rounded-lg transition-colors">
                                Remove
@@ -511,20 +623,34 @@ export default function NewScan() {
                   )}
                 </div>
 
+                {/* Reminder if file is selected but category is not yet picked */}
+                {file && !category && (
+                  <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-center gap-3 text-amber-900 text-xs font-semibold animate-in fade-in">
+                    <AlertCircle size={20} className="text-amber-600 shrink-0" />
+                    <span>
+                      Almost ready! Please click one of the 4 Screening Types above (e.g. Dementia) to start analysis.
+                    </span>
+                  </div>
+                )}
+
                 {/* Scan Summary & CTA - Only shows if both are selected */}
                 {(file && category) && (
                   <div className="bg-gray-900 rounded-2xl p-6 md:p-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-xl animate-in fade-in slide-in-from-bottom-4">
                      <div>
                        <p className="text-gray-400 font-semibold mb-1 text-sm uppercase tracking-wider">Scan Summary</p>
                        <div className="text-white flex items-center gap-2 mb-1">
-                          <span className="font-bold">{getCategoryName(category)}</span>
+                          <span className="font-bold text-lg">{getCategoryName(category)}</span>
                        </div>
                        <p className="text-gray-400 text-sm flex items-center gap-2">
-                         <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
-                         Ready for analysis
+                         <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></span>
+                         Ready for immediate AI analysis
                        </p>
                      </div>
-                     <button type="submit" disabled={uploading} className="w-full md:w-auto inline-flex items-center justify-center gap-2 bg-blue-500 hover:bg-blue-400 text-white font-extrabold px-8 py-4 rounded-xl shadow-lg shadow-blue-500/20 transition-all hover:scale-105 active:scale-95 whitespace-nowrap text-lg">
+                     <button 
+                       type="submit" 
+                       disabled={uploading} 
+                       className="w-full md:w-auto inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-extrabold px-8 py-4 rounded-xl shadow-lg shadow-blue-500/30 transition-all hover:scale-105 active:scale-95 whitespace-nowrap text-lg cursor-pointer"
+                     >
                        Analyze with VitaScan AI <ArrowRight size={20} />
                      </button>
                   </div>
@@ -532,8 +658,23 @@ export default function NewScan() {
                 
                 {/* Fallback CTA if incomplete */}
                 {(!file || !category) && (
-                  <button type="button" disabled className="w-full bg-gray-100 text-gray-400 font-bold p-4 rounded-xl cursor-not-allowed">
-                    Analyze with VitaScan AI
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      if (!category) {
+                        const el = document.getElementById("screening-type-section");
+                        el?.scrollIntoView({ behavior: "smooth" });
+                      }
+                    }}
+                    className={`w-full font-bold p-4 rounded-xl transition-all ${
+                      file && !category
+                        ? "bg-amber-100 text-amber-800 border-2 border-amber-300 hover:bg-amber-200 cursor-pointer shadow-sm animate-pulse"
+                        : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                    }`}
+                  >
+                    {file && !category 
+                      ? "👆 Please Select Screening Type Above to Continue" 
+                      : "Upload an image and select category to analyze"}
                   </button>
                 )}
                 
