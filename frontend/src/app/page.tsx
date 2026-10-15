@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { Activity, Brain, Droplet, ActivitySquare, ArrowRight, HeartPulse } from 'lucide-react';
+import { Activity, Brain, Droplet, ActivitySquare, ArrowRight, HeartPulse, Stethoscope, User } from 'lucide-react';
 
 export default function Home() {
   return (
@@ -28,13 +28,19 @@ export default function Home() {
             AI-powered screening assistance for early detection of multiple diseases, helping healthcare professionals make informed decisions through intelligent medical analysis.
           </p>
           
-          <div className="flex flex-col sm:flex-row gap-4">
-            <Link href="/dashboard/new-scan" className="inline-flex items-center justify-center px-8 py-4 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-semibold transition-all shadow-lg shadow-blue-600/20 group text-lg">
-              Start New Scan
-              <ArrowRight size={20} className="ml-2 group-hover:translate-x-1.5 transition-transform" />
+          <div className="flex flex-col sm:flex-row gap-3.5 flex-wrap">
+            <Link href="/login?role=doctor" className="inline-flex items-center justify-center px-6 py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-700 text-white font-semibold transition-all shadow-lg shadow-blue-600/20 group text-base">
+              <Stethoscope size={18} className="mr-2" />
+              Doctor Portal
+              <ArrowRight size={18} className="ml-2 group-hover:translate-x-1.5 transition-transform" />
             </Link>
-            <Link href="/dashboard/reports" className="inline-flex items-center justify-center px-8 py-4 rounded-2xl bg-white hover:bg-gray-50 text-gray-700 font-semibold border border-gray-200 transition-all shadow-sm text-lg">
-              View Reports
+            <Link href="/login?role=patient" className="inline-flex items-center justify-center px-6 py-3.5 rounded-2xl bg-cyan-600 hover:bg-cyan-700 text-white font-semibold transition-all shadow-lg shadow-cyan-600/20 group text-base">
+              <User size={18} className="mr-2" />
+              Patient Portal
+              <ArrowRight size={18} className="ml-2 group-hover:translate-x-1.5 transition-transform" />
+            </Link>
+            <Link href="/dashboard/new-scan" className="inline-flex items-center justify-center px-6 py-3.5 rounded-2xl bg-white hover:bg-gray-50 text-gray-700 font-semibold border border-gray-200 transition-all shadow-sm text-base">
+              Start New Scan
             </Link>
           </div>
         </div>
