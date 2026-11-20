@@ -105,10 +105,16 @@ export default function DoctorDashboard() {
                                     </div>
                                     <div className="text-right">
                                         <p className="text-sm font-semibold text-blue-700">
-                                            {new Date(a.appointment_date).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
+                                            {(() => {
+                                                const d = new Date(a.appointment_date);
+                                                return !isNaN(d.getTime()) ? d.toLocaleDateString("en-IN", { day: "numeric", month: "short" }) : "Scheduled";
+                                            })()}
                                         </p>
                                         <p className="text-xs text-gray-400">
-                                            {new Date(a.appointment_date).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                                            {(a as any).appointment_time || (() => {
+                                                const d = new Date(a.appointment_date);
+                                                return !isNaN(d.getTime()) && (a.appointment_date || "").includes("T") ? d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "10:00 AM";
+                                            })()}
                                         </p>
                                     </div>
                                 </div>

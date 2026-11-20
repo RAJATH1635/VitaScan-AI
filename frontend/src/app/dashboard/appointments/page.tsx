@@ -11,12 +11,96 @@ import { REFERRAL_DOCTORS } from "@/lib/referralDoctors";
 
 interface Appointment {
   id: string;
-  disease: string;
-  doctor: string;
+  disease?: string;
+  disease_type?: string;
+  doctor?: string;
+  doctor_name?: string;
+  patient_name?: string;
+  specialty?: string;
+  hospital?: string;
   appointment_date: string;
-  appointment_time: string;
-  notes: string;
+  appointment_time?: string;
+  notes?: string;
   status: string;
+}
+
+function formatAppointmentDateTime(dateStr?: string, timeStr?: string): { formattedDate: string; formattedTime: string } {
+  let formattedDate = "Scheduled";
+  let formattedTime = "10:00 AM";
+
+  if (!dateStr && !timeStr) {
+    return { formattedDate, formattedTime };
+  }
+
+  // 1. Parse timeStr first if provided (e.g. "14:30" or "09:15:00" or "2:30 PM")
+  if (timeStr && typeof timeStr === "string" && !timeStr.includes("undefined") && timeStr.trim().length > 0) {
+    const timeMatch = timeStr.trim().match(/^(\d{1,2}):(\d{2})/);
+    if (timeMatch) {
+      let hours = parseInt(timeMatch[1], 10);
+      const minutes = timeMatch[2];
+      const ampm = hours >= 12 ? "PM" : "AM";
+      hours = hours % 12;
+      hours = hours ? hours : 12;
+      formattedTime = `${hours}:${minutes} ${ampm}`;
+    } else if (timeStr.toLowerCase().includes("am") || timeStr.toLowerCase().includes("pm")) {
+      formattedTime = timeStr.trim();
+    }
+  }
+
+  // 2. Parse dateStr
+  if (dateStr && typeof dateStr === "string") {
+    // If it's an ISO timestamp like "2026-11-22T15:56:56.716Z"
+    if (dateStr.includes("T")) {
+      const d = new Date(dateStr);
+      if (!isNaN(d.getTime())) {
+        formattedDate = d.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        });
+        if (!timeStr || timeStr.trim().length === 0 || timeStr.includes("undefined")) {
+          formattedTime = d.toLocaleTimeString("en-US", {
+            hour: "numeric",
+            minute: "2-digit",
+            hour12: true,
+          });
+        }
+        return { formattedDate, formattedTime };
+      }
+    }
+
+    // Try parsing "YYYY-MM-DD"
+    const parts = dateStr.trim().split("-");
+    if (parts.length === 3) {
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      const d = new Date(year, month, day);
+      if (!isNaN(d.getTime())) {
+        formattedDate = d.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        });
+        return { formattedDate, formattedTime };
+      }
+    }
+
+    // Fallback Date constructor
+    const fallbackD = new Date(dateStr);
+    if (!isNaN(fallbackD.getTime())) {
+      formattedDate = fallbackD.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
+      return { formattedDate, formattedTime };
+    }
+
+    formattedDate = dateStr;
+  }
+
+  return { formattedDate, formattedTime };
 }
 
 function AppointmentsContent() {
@@ -153,32 +237,35 @@ function AppointmentsContent() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {appointments.map((a) => {
-                const isCompleted = a.status.toLowerCase() === 'completed';
-                const isPending = a.status.toLowerCase() === 'pending' || a.status.toLowerCase() === 'scheduled';
+                const statusStr = (a.status || "").toLowerCase();
+                const isCompleted = statusStr === 'completed';
+                const isPending = statusStr === 'pending' || statusStr === 'scheduled' || statusStr === 'upcoming';
+                const { formattedDate, formattedTime } = formatAppointmentDateTime(a.appointment_date, a.appointment_time);
+                const displayDisease = a.disease || a.disease_type || (a.notes && a.notes.length < 35 ? a.notes : "Clinical Consultation");
+                const displayDoctor = a.doctor || a.doctor_name || "Specialist Physician";
+
                 return (
                   <tr key={a.id} className="hover:bg-blue-50/20 transition-colors">
                     <td className="p-4 pl-6">
-                      <div className="font-semibold text-gray-900">{a.disease}</div>
+                      <div className="font-semibold text-gray-900">{displayDisease}</div>
                     </td>
                     <td className="p-4">
                       <div className="flex items-center gap-2">
                         <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 shrink-0">
                           <User size={14} />
                         </div>
-                        <span className="text-gray-700 font-medium">{a.doctor}</span>
+                        <span className="text-gray-700 font-medium">{displayDoctor}</span>
                       </div>
                     </td>
                     <td className="p-4">
                       <div className="flex items-center gap-4 text-gray-600 font-medium text-sm">
                         <span className="flex items-center gap-1.5 bg-gray-50 px-2.5 py-1 rounded-md">
                           <Calendar size={14} className="text-gray-400" />
-                          {a.appointment_date}
+                          {formattedDate}
                         </span>
                         <span className="flex items-center gap-1.5 bg-gray-50 px-2.5 py-1 rounded-md">
                           <Clock size={14} className="text-gray-400" />
-                          {new Date(`1970-01-01T${a.appointment_time}`).toLocaleTimeString([], {
-                            hour: "2-digit", minute: "2-digit", hour12: true,
-                          })}
+                          {formattedTime}
                         </span>
                       </div>
                     </td>
@@ -188,7 +275,7 @@ function AppointmentsContent() {
                         isPending ? 'bg-amber-50 text-amber-700 border-amber-100' :
                         'bg-gray-50 text-gray-700 border-gray-200'
                       }`}>
-                        {a.status}
+                        {a.status || "upcoming"}
                       </span>
                     </td>
                   </tr>

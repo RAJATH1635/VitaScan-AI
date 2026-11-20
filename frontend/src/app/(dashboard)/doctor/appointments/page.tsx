@@ -56,7 +56,10 @@ export default function DoctorAppointmentsPage() {
         ) : (
           <div className="space-y-3">
             {filtered.map((a) => {
-              const dt = new Date(a.appointment_date);
+              const rawDate = a.appointment_date || new Date().toISOString();
+              const dt = new Date(rawDate);
+              const validDt = !isNaN(dt.getTime()) ? dt : new Date();
+              const timeDisplay = (a as any).appointment_time || (rawDate.includes("T") ? validDt.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "10:00 AM");
               const isUpcoming = a.status === "upcoming";
               return (
                 <div key={a.id} className={`bg-white rounded-2xl border p-5 shadow-sm flex items-center gap-5 ${isUpcoming ? "border-blue-100" : "border-gray-100 opacity-80"
@@ -64,23 +67,23 @@ export default function DoctorAppointmentsPage() {
                   {/* Date block */}
                   <div className={`shrink-0 w-16 h-16 rounded-2xl flex flex-col items-center justify-center font-bold ${isUpcoming ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600"
                     }`}>
-                    <span className="text-xl leading-none">{dt.getDate()}</span>
-                    <span className="text-xs">{dt.toLocaleString("en-IN", { month: "short" })}</span>
+                    <span className="text-xl leading-none">{validDt.getDate()}</span>
+                    <span className="text-xs">{validDt.toLocaleString("en-IN", { month: "short" })}</span>
                   </div>
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <User size={14} className="text-gray-400 shrink-0" />
-                      <p className="font-semibold text-gray-900 truncate">{a.patient_name}</p>
+                      <p className="font-semibold text-gray-900 truncate">{a.patient_name || "Patient"}</p>
                     </div>
-                    <p className="text-sm text-gray-500 truncate">{a.patient_email}</p>
+                    <p className="text-sm text-gray-500 truncate">{a.patient_email || (a as any).hospital || "Confirmed Appointment"}</p>
                     {a.notes && <p className="text-sm text-gray-400 truncate mt-0.5">{a.notes}</p>}
                   </div>
 
                   <div className="flex flex-col items-end gap-2 shrink-0">
                     <div className="flex items-center gap-1 text-sm text-gray-500">
                       <Clock size={14} />
-                      {dt.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                      {timeDisplay}
                     </div>
                     {isUpcoming ? (
                       <span className="px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 flex items-center gap-1">

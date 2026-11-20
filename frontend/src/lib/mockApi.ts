@@ -89,10 +89,13 @@ const INITIAL_APPOINTMENTS = [
     id: "appt-1",
     patient_name: "RAJATH B G",
     doctor_name: "Dr. Ramesh Iyer",
+    doctor: "Dr. Ramesh Iyer",
     specialty: "Dementia & Cognitive Neurology",
     hospital: "Manipal Hospital",
     location: "Bengaluru, Karnataka",
-    appointment_date: new Date(Date.now() + 86400000 * 2).toISOString(),
+    appointment_date: new Date(Date.now() + 86400000 * 2).toISOString().split("T")[0],
+    appointment_time: "10:30 AM",
+    disease: "Dementia (Brain MRI)",
     disease_type: "dementia",
     notes: "Follow-up consultation for cognitive assessment & neuro-imaging correlation",
     status: "upcoming",
@@ -101,10 +104,13 @@ const INITIAL_APPOINTMENTS = [
     id: "appt-2",
     patient_name: "Anita Sharma",
     doctor_name: "Dr. Meenakshi Sundaram",
+    doctor: "Dr. Meenakshi Sundaram",
     specialty: "Surgical Oncology & Breast Reconstruction",
     hospital: "Apollo Proton Cancer Centre",
     location: "Chennai, Tamil Nadu",
-    appointment_date: new Date(Date.now() + 86400000 * 4).toISOString(),
+    appointment_date: new Date(Date.now() + 86400000 * 4).toISOString().split("T")[0],
+    appointment_time: "02:00 PM",
+    disease: "Breast Cancer (Biopsy Review)",
     disease_type: "breast_cancer",
     notes: "Clinical review of ultrasound scan and biopsy results",
     status: "upcoming",
@@ -113,10 +119,13 @@ const INITIAL_APPOINTMENTS = [
     id: "appt-3",
     patient_name: "Karthik Verma",
     doctor_name: "Dr. Prathap Shenoy",
+    doctor: "Dr. Prathap Shenoy",
     specialty: "Infectious Diseases & Tropical Medicine",
     hospital: "KMC Hospital",
     location: "Mangaluru, Karnataka",
-    appointment_date: new Date(Date.now() + 86400000 * 7).toISOString(),
+    appointment_date: new Date(Date.now() + 86400000 * 7).toISOString().split("T")[0],
+    appointment_time: "11:15 AM",
+    disease: "Malaria (Blood Smear)",
     disease_type: "malaria",
     notes: "Post-antimalarial therapy blood smear evaluation",
     status: "upcoming",
@@ -975,7 +984,35 @@ export async function handleMockRequest(config: any): Promise<MockResponse | nul
   // 11. APPOINTMENTS: List & Create
   if (path.startsWith("/medical/appointments") || path.startsWith("/medical/appointments/")) {
     const stored = localStorage.getItem("vitascan_appointments_mock");
-    let appts = stored ? JSON.parse(stored) : INITIAL_APPOINTMENTS;
+    let rawAppts = stored ? JSON.parse(stored) : INITIAL_APPOINTMENTS;
+
+    // Sanitize all stored and initial appointments so dates and times never show 'Invalid Date'
+    let appts = Array.isArray(rawAppts)
+      ? rawAppts.map((a: any, idx: number) => {
+          const rawDate = a.appointment_date || new Date(Date.now() + 86400000 * (idx + 1)).toISOString();
+          let apptTime = a.appointment_time;
+          if (!apptTime || apptTime === "Invalid Date" || apptTime.includes("undefined")) {
+            if (rawDate.includes("T")) {
+              const d = new Date(rawDate);
+              apptTime = !isNaN(d.getTime()) && (d.getHours() !== 0 || d.getMinutes() !== 0)
+                ? d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
+                : "10:00 AM";
+            } else {
+              apptTime = "10:00 AM";
+            }
+          }
+          return {
+            ...a,
+            doctor: a.doctor || a.doctor_name || "Specialist Physician",
+            doctor_name: a.doctor_name || a.doctor || "Specialist Physician",
+            disease: a.disease || a.disease_type || "Clinical Consultation",
+            disease_type: a.disease_type || a.disease || "general",
+            appointment_date: rawDate.includes("T") ? rawDate.split("T")[0] : rawDate,
+            appointment_time: apptTime,
+            status: a.status || "upcoming",
+          };
+        })
+      : INITIAL_APPOINTMENTS;
 
     if (method === "get") {
       return { status: 200, data: appts };
@@ -986,17 +1023,22 @@ export async function handleMockRequest(config: any): Promise<MockResponse | nul
       const newAppt = {
         id: `appt-${Date.now()}`,
         patient_name: localStorage.getItem("user_name") || "RAJATH B G",
-        doctor_name: body.doctor || "Dr. Ramesh Iyer",
+        doctor_name: body.doctor || body.doctor_name || "Dr. Ramesh Iyer",
+        doctor: body.doctor || body.doctor_name || "Dr. Ramesh Iyer",
         specialty: body.disease ? `${body.disease} Specialist` : "Medical Specialist",
         hospital: "Specialist Medical Center",
         location: "Bengaluru, India",
-        appointment_date: body.appointment_date || new Date(Date.now() + 86400000).toISOString(),
-        disease_type: body.disease || "general",
+        appointment_date: body.appointment_date || new Date(Date.now() + 86400000).toISOString().split("T")[0],
+        appointment_time: body.appointment_time || "10:00 AM",
+        disease: body.disease || body.disease_type || "General Consultation",
+        disease_type: body.disease || body.disease_type || "general",
         notes: body.notes || "Requested clinical consultation",
         status: "upcoming",
       };
       appts.unshift(newAppt);
-      localStorage.setItem("vitascan_appointments_mock", JSON.stringify(appts));
+      try {
+        localStorage.setItem("vitascan_appointments_mock", JSON.stringify(appts));
+      } catch {}
       return { status: 201, data: newAppt };
     }
   }
