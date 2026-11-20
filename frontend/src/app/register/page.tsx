@@ -53,8 +53,11 @@ export default function Register() {
           experience_years: parseFloat(formData.experience_years) || 0,
         });
       }
+      const targetRole = tab === "DOCTOR" ? "doctor" : "patient";
       setSuccess("Registration successful! Redirecting to login...");
-      setTimeout(() => router.push("/login"), 2000);
+      setTimeout(() => {
+        router.push(`/login?role=${targetRole}&registered=true&email=${encodeURIComponent(formData.email)}`);
+      }, 1500);
     } catch (err: any) {
       setError(err.response?.data?.detail || "An error occurred during registration");
     } finally {

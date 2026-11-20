@@ -705,6 +705,32 @@ async function analyzeUploadedScan(
   };
 }
 
+
+function getMockUsers(): any[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const stored = localStorage.getItem("vitascan_registered_users");
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveMockUser(user: any) {
+  if (typeof window === "undefined") return;
+  try {
+    const users = getMockUsers();
+    const cleanEmail = (user.email || "").trim().toLowerCase();
+    const filtered = users.filter((u: any) => u.email.toLowerCase() !== cleanEmail);
+    filtered.push({
+      ...user,
+      email: cleanEmail,
+      updated_at: new Date().toISOString(),
+    });
+    localStorage.setItem("vitascan_registered_users", JSON.stringify(filtered));
+  } catch {}
+}
+
 export async function handleMockRequest(config: any): Promise<MockResponse | null> {
   if (typeof window === "undefined") return null;
 
@@ -716,31 +742,74 @@ export async function handleMockRequest(config: any): Promise<MockResponse | nul
 
   // 1. AUTH: Login
   if (path === "/auth/login" && method === "post") {
-    // Extract credentials from FormData or body
-    let username = "user@vitascan.ai";
+    let username = "";
+    let password = "";
+
     if (config.data) {
       if (typeof config.data === "string") {
-        const params = new URLSearchParams(config.data);
-        username = params.get("username") || username;
-      } else if (config.data instanceof FormData) {
-        username = (config.data.get("username") as string) || username;
+        try {
+          if (config.data.startsWith("{")) {
+            const parsed = JSON.parse(config.data);
+            username = parsed.username || parsed.email || "";
+            password = parsed.password || "";
+          } else {
+            const params = new URLSearchParams(config.data);
+            username = params.get("username") || params.get("email") || "";
+            password = params.get("password") || "";
+          }
+        } catch {
+          const params = new URLSearchParams(config.data);
+          username = params.get("username") || params.get("email") || "";
+          password = params.get("password") || "";
+        }
+      } else if (typeof config.data.get === "function") {
+        // Handle URLSearchParams OR FormData instances!
+        username = config.data.get("username") || config.data.get("email") || "";
+        password = config.data.get("password") || "";
+      } else if (typeof config.data === "object") {
+        username = config.data.username || config.data.email || "";
+        password = config.data.password || "";
       }
     }
 
-    const isDoctor =
-      username.toLowerCase().includes("doc") ||
-      username.toLowerCase().includes("ramesh") ||
-      username.toLowerCase().includes("doctor") ||
-      username.toLowerCase().includes("hosp") ||
-      username.toLowerCase().includes("medanta") ||
-      username.toLowerCase().includes("apollo");
+    username = (username || "rajathbg123@gmail.com").trim().toLowerCase();
 
-    const role = isDoctor ? "DOCTOR" : "PATIENT";
-    const fullName = isDoctor
-      ? username.toLowerCase().includes("ramesh")
-        ? "Dr. Ramesh Iyer"
-        : "Dr. Clinical Specialist"
-      : "RAJATH B G";
+    // 1. Check in registered users list first
+    const registeredUsers = getMockUsers();
+    const foundUser = registeredUsers.find(
+      (u: any) => u.email.toLowerCase() === username
+    );
+
+    let role = "PATIENT";
+    let fullName = "RAJATH B G";
+
+    if (foundUser) {
+      // Validate password if user set a password during registration
+      if (foundUser.password && password && foundUser.password !== password) {
+        return {
+          status: 400,
+          data: { detail: "Incorrect email or password. Please verify your credentials." },
+        };
+      }
+      role = foundUser.role || "PATIENT";
+      fullName = foundUser.full_name || (role === "DOCTOR" ? "Dr. Specialist" : "Patient User");
+    } else {
+      // Check default demo credentials
+      const isDoctorDemo =
+        username.includes("doc") ||
+        username.includes("ramesh") ||
+        username.includes("doctor") ||
+        username.includes("hosp") ||
+        username.includes("medanta") ||
+        username.includes("apollo");
+
+      role = isDoctorDemo ? "DOCTOR" : "PATIENT";
+      fullName = isDoctorDemo
+        ? username.includes("ramesh")
+          ? "Dr. Ramesh Iyer"
+          : "Dr. Clinical Specialist"
+        : (username.includes("rajath") ? "RAJATH B G" : "Patient User");
+    }
 
     localStorage.setItem("access_token", `demo-token-${Date.now()}`);
     localStorage.setItem("refresh_token", `demo-refresh-${Date.now()}`);
@@ -761,18 +830,22 @@ export async function handleMockRequest(config: any): Promise<MockResponse | nul
 
   // 2. AUTH: Current User Profile (/auth/me)
   if (path === "/auth/me" && method === "get") {
-    const role = localStorage.getItem("role") || "PATIENT";
+    const email = localStorage.getItem("user_email") || "rajathbg123@gmail.com";
+    const registeredUsers = getMockUsers();
+    const foundUser = registeredUsers.find(
+      (u: any) => u.email.toLowerCase() === email.toLowerCase()
+    );
+
+    const role = foundUser?.role || localStorage.getItem("role") || "PATIENT";
     const fullName =
+      foundUser?.full_name ||
       localStorage.getItem("user_name") ||
       (role === "DOCTOR" ? "Dr. Ramesh Iyer" : "RAJATH B G");
-    const email =
-      localStorage.getItem("user_email") ||
-      (role === "DOCTOR" ? "ramesh123@gmail.com" : "rajathbg123@gmail.com");
 
     return {
       status: 200,
       data: {
-        id: "mock-user-current",
+        id: foundUser?.id || "mock-user-current",
         email,
         full_name: fullName,
         role,
@@ -784,9 +857,64 @@ export async function handleMockRequest(config: any): Promise<MockResponse | nul
 
   // 3. AUTH: Registration
   if ((path === "/auth/register" || path === "/auth/register-doctor") && method === "post") {
+    let body: any = {};
+    if (typeof config.data === "string") {
+      try {
+        body = JSON.parse(config.data);
+      } catch {
+        const p = new URLSearchParams(config.data);
+        p.forEach((val, key) => { body[key] = val; });
+      }
+    } else if (config.data && typeof config.data.get === "function") {
+      body = {
+        email: config.data.get("email"),
+        password: config.data.get("password"),
+        full_name: config.data.get("full_name"),
+        role: config.data.get("role"),
+        specialization: config.data.get("specialization"),
+        license_number: config.data.get("license_number"),
+      };
+    } else if (config.data && typeof config.data === "object") {
+      body = config.data;
+    }
+
+    const email = (body.email || "").trim().toLowerCase();
+    const role = path.includes("doctor") ? "DOCTOR" : (body.role || "PATIENT");
+    const fullName = body.full_name || (role === "DOCTOR" ? "Dr. Registered Specialist" : "Registered Patient");
+    const password = body.password || "";
+
+    const newUser = {
+      id: `usr-${Date.now()}`,
+      email,
+      password,
+      full_name: fullName,
+      role,
+      specialization: body.specialization || "General Medicine",
+      license_number: body.license_number || "",
+      is_active: true,
+      is_verified: true,
+      created_at: new Date().toISOString(),
+    };
+
+    saveMockUser(newUser);
+
+    try {
+      localStorage.setItem("vitascan_last_registered_email", email);
+      localStorage.setItem("vitascan_last_registered_role", role);
+      localStorage.setItem("vitascan_last_registered_name", fullName);
+    } catch {}
+
     return {
       status: 201,
-      data: { message: "Account created successfully (Cloud Demo Mode)." },
+      data: {
+        id: newUser.id,
+        email: newUser.email,
+        full_name: newUser.full_name,
+        role: newUser.role,
+        is_active: true,
+        is_verified: true,
+        message: "Account created successfully.",
+      },
     };
   }
 

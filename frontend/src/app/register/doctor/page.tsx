@@ -61,7 +61,9 @@ export default function DoctorRegisterPage() {
       });
 
       setSuccess("Doctor registration successful! Redirecting to login...");
-      setTimeout(() => router.push("/login"), 2000);
+      setTimeout(() => {
+        router.push(`/login?role=doctor&registered=true&email=${encodeURIComponent(formData.email)}`);
+      }, 1500);
     } catch (err: any) {
       setError(err.response?.data?.detail || "An error occurred during registration");
     } finally {

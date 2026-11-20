@@ -38,19 +38,41 @@ function LoginFormContent() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  // Initialize role from URL query param if available (?role=doctor or ?role=patient)
+  // Initialize role and email from URL query param or recent registration
   useEffect(() => {
     const roleParam = searchParams.get("role")?.toUpperCase();
     if (roleParam === "DOCTOR" || roleParam === "PATIENT") {
       setSelectedRole(roleParam as RoleType);
+    } else {
+      const lastRole = localStorage.getItem("vitascan_last_registered_role");
+      if (lastRole === "DOCTOR" || lastRole === "PATIENT") {
+        setSelectedRole(lastRole as RoleType);
+      }
+    }
+
+    const emailParam = searchParams.get("email") || localStorage.getItem("vitascan_last_registered_email");
+    if (emailParam) {
+      setEmail(emailParam);
+    }
+
+    if (searchParams.get("registered") === "true") {
+      setSuccessMsg("Account registered successfully! Enter your password to sign in.");
     }
   }, [searchParams]);
 
-  // If already authenticated, redirect to appropriate workspace
+  // If already authenticated, redirect to appropriate workspace (skip if just registered)
   useEffect(() => {
+    if (searchParams.get("registered") === "true") {
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("refresh_token");
+      localStorage.removeItem("role");
+      return;
+    }
+
     const token = localStorage.getItem("access_token");
     if (token) {
       api
@@ -68,7 +90,7 @@ function LoginFormContent() {
           localStorage.removeItem("role");
         });
     }
-  }, [router]);
+  }, [router, searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,10 +109,20 @@ function LoginFormContent() {
       localStorage.setItem("access_token", res.data.access_token);
       localStorage.setItem("refresh_token", res.data.refresh_token);
 
-      const me = await api.get("/auth/me");
-      const role = me.data.role || selectedRole || "PATIENT";
+      let role = selectedRole || "PATIENT";
+      try {
+        const me = await api.get("/auth/me");
+        if (me.data?.role) {
+          role = me.data.role;
+        }
+        if (me.data?.full_name) {
+          localStorage.setItem("user_name", me.data.full_name);
+        }
+      } catch (meErr) {
+        console.warn("Could not fetch user info after login:", meErr);
+      }
+
       localStorage.setItem("role", role);
-      localStorage.setItem("user_name", me.data.full_name || (role === "DOCTOR" ? "Dr. Ramesh Iyer" : "RAJATH B G"));
       localStorage.setItem("user_email", email);
 
       // Route user to their corresponding portal
@@ -550,6 +582,14 @@ function LoginFormContent() {
                   <span>Auto Sign In</span>
                 </button>
               </div>
+
+              {/* Registration success notice */}
+              {successMsg && (
+                <div className="mb-5 p-3.5 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl flex items-start gap-2.5 text-xs font-semibold animate-in fade-in">
+                  <CheckCircle2 size={16} className="text-emerald-600 mt-0.5 shrink-0" />
+                  <span>{successMsg}</span>
+                </div>
+              )}
 
               {/* Error banner */}
               {error && (
