@@ -8,14 +8,12 @@ export default function DashboardSidebar({ role }: { role: string }) {
     const pathname = usePathname();
     
     const patientLinks = [
-        { name: 'Dashboard', href: '/patient', icon: Home },
-        { name: 'Profile', href: '/patient/profile', icon: User },
-        { name: 'Medical History', href: '/patient/history', icon: FileText },
-        { name: 'Upload Center', href: '/patient/upload', icon: Upload },
-        { name: 'Reports', href: '/patient/reports', icon: Clipboard },
-        { name: 'Appointments', href: '/patient/appointments', icon: Calendar },
-        { name: 'Notifications', href: '/patient/notifications', icon: Bell },
-        { name: 'Settings', href: '/patient/settings', icon: Settings },
+        { name: 'Dashboard', href: '/dashboard', icon: Home },
+        { name: 'New Scan', href: '/dashboard/new-scan', icon: Upload },
+        { name: 'Reports', href: '/dashboard/reports', icon: Clipboard },
+        { name: 'Appointments', href: '/dashboard/appointments', icon: Calendar },
+        { name: 'Notifications', href: '/dashboard/notifications', icon: Bell },
+        { name: 'Profile', href: '/dashboard/profile', icon: User },
     ];
 
     const doctorLinks = [
