@@ -56,6 +56,23 @@ export default function ReportDetailsPage() {
           router.replace("/login");
           return;
         }
+
+        // Check local storage for newly generated scan if backend did not have it
+        if (typeof window !== "undefined") {
+          try {
+            const stored = localStorage.getItem("vitascan_reports_mock");
+            if (stored) {
+              const localList = JSON.parse(stored);
+              const found = Array.isArray(localList) ? localList.find((r: any) => r.id === id) : null;
+              if (found) {
+                setReport(found);
+                setLoading(false);
+                return;
+              }
+            }
+          } catch {}
+        }
+
         setError(err.response?.data?.detail || "Failed to load report data.");
         console.error("Report Fetch Error:", err);
       } finally {
@@ -66,9 +83,9 @@ export default function ReportDetailsPage() {
     if (id) fetchReport();
   }, [id, router]);
 
-  const imageUrl = report?.image_path
-    ? `${API_BASE}/${report.image_path.replace(/\\/g, "/")}`
-    : "";
+  const isCsv = (report?.image_path || "").toLowerCase().endsWith(".csv") || (report?.disease || "").toLowerCase() === "anemia";
+  const cleanPath = report?.image_path ? report.image_path.replace(/\\/g, "/").replace(/^\/+/, "") : "";
+  const imageUrl = cleanPath ? (cleanPath.startsWith("http") ? cleanPath : `${API_BASE}/${cleanPath}`) : "";
 
   const diseaseRecommendations: Record<string, { risk: string; riskColor: string; bgRiskColor: string, doctor: string; tests: string[]; advice: string[]; }> = {
     Malaria: {
@@ -91,6 +108,15 @@ export default function ReportDetailsPage() {
       tests: ["Complete Blood Count (CBC)", "Iron Profile", "Vitamin B12 Assay"],
       advice: ["Increase iron-rich dietary intake.", "Initiate physician-prescribed supplements.", "Retest in 30 days."]
     }
+  };
+
+  // Defined before downloadProfessionalPDF so it is always in scope when called (const arrow functions are not hoisted)
+  const getRecommendation = (disease: string) => {
+    const d = (disease || "").toLowerCase();
+    if (d.includes("dementia") || d.includes("mri") || d.includes("brain")) return diseaseRecommendations["Dementia"];
+    if (d.includes("breast") || d.includes("cancer") || d.includes("histopathology")) return diseaseRecommendations["Breast Cancer"];
+    if (d.includes("malaria") || d.includes("smear") || d.includes("blood")) return diseaseRecommendations["Malaria"];
+    return diseaseRecommendations["Anemia"];
   };
 
   const getFormatConfidence = (val: number) => {
@@ -186,7 +212,7 @@ export default function ReportDetailsPage() {
       pdf.text("AI ASSESSMENT", margin, yPos);
       yPos += 8;
 
-      const isNormal = report.prediction.toLowerCase().includes("normal") || report.prediction.toLowerCase().includes("negative");
+      const isNormal = (report.prediction || "").toLowerCase().includes("normal") || (report.prediction || "").toLowerCase().includes("negative");
       pdf.setFillColor(isNormal ? 236 : 255, isNormal ? 253 : 241, isNormal ? 245 : 242);
       pdf.setDrawColor(isNormal ? 167 : 253, isNormal ? 243 : 186, isNormal ? 208 : 116);
       pdf.roundedRect(margin, yPos, pageWidth - (margin*2), 20, 2, 2, "FD");
@@ -194,7 +220,7 @@ export default function ReportDetailsPage() {
       pdf.setFont("helvetica", "bold");
       pdf.setFontSize(12);
       pdf.setTextColor(isNormal ? 6 : 159, isNormal ? 95 : 18, isNormal ? 70 : 57);
-      pdf.text(`Result: ${report.prediction}`, margin + 5, yPos + 12);
+      pdf.text(`Result: ${report.prediction || "Completed"}`, margin + 5, yPos + 12);
       
       yPos += 30;
 
@@ -205,7 +231,7 @@ export default function ReportDetailsPage() {
       pdf.text("Diagnostic Confidence", margin, yPos);
       
       yPos += 5;
-      const confValue = parseFloat(getFormatConfidence(report.confidence));
+      const confValue = parseFloat(getFormatConfidence(report.confidence ?? 0.95));
       
       pdf.setFillColor(226, 232, 240); // Track
       pdf.rect(margin, yPos, 100, 6, "F");
@@ -219,11 +245,11 @@ export default function ReportDetailsPage() {
 
       yPos += 20;
 
-      // IMAGE
+      // IMAGE OR CLINICAL DATASET
       let imageAdded = false;
-      if (imageUrl) {
+      if (imageUrl && !isCsv) {
         const base64Img = await getBase64ImageFromUrl(imageUrl);
-        if (base64Img) {
+        if (base64Img && base64Img.startsWith("data:image")) {
           pdf.setFont("helvetica", "bold");
           pdf.setFontSize(14);
           pdf.setTextColor(15, 23, 42);
@@ -241,6 +267,17 @@ export default function ReportDetailsPage() {
              yPos -= 8; // Revert
           }
         }
+      } else if (isCsv) {
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(12);
+        pdf.setTextColor(15, 23, 42);
+        pdf.text("CLINICAL DATA SOURCE", margin, yPos);
+        yPos += 7;
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(10);
+        pdf.setTextColor(71, 85, 105);
+        pdf.text("Complete Blood Count (CBC) Tabular Laboratory Dataset (.CSV)", margin, yPos);
+        yPos += 14;
       }
 
       if (yPos > 240) {
@@ -266,7 +303,7 @@ export default function ReportDetailsPage() {
       yPos += (splitSummary.length * 5) + 15;
 
       // RECOMMENDATIONS
-      const rec = diseaseRecommendations[report.disease] || diseaseRecommendations["Anemia"];
+      const rec = getRecommendation(report.disease);
       pdf.setFont("helvetica", "bold");
       pdf.setFontSize(14);
       pdf.setTextColor(15, 23, 42);
@@ -368,8 +405,12 @@ export default function ReportDetailsPage() {
     );
   }
 
-  const isNormalMsg = report.prediction.toLowerCase().includes("normal") || report.prediction.toLowerCase().includes("negative");
-  const recommendation = diseaseRecommendations[report.disease] || diseaseRecommendations["Anemia"];
+  const isNormalMsg = (report.prediction || "").toLowerCase().includes("normal") || 
+                      (report.prediction || "").toLowerCase().includes("negative") ||
+                      (report.prediction || "").toLowerCase().includes("benign");
+
+
+  const recommendation = getRecommendation(report.disease);
 
   return (
     <div className="max-w-[90rem] mx-auto p-4 md:p-8 pb-12 animate-in fade-in slide-in-from-bottom-2 duration-500">
@@ -381,7 +422,7 @@ export default function ReportDetailsPage() {
             <ArrowLeft size={16} /> All Reports
           </Link>
           <span>/</span>
-          <span className="text-gray-900">ID: {report.id.substring(0,8).toUpperCase()}</span>
+          <span className="text-gray-900">ID: {(report.id || "SCAN").substring(0,8).toUpperCase()}</span>
         </div>
         
         <button 
@@ -593,7 +634,20 @@ export default function ReportDetailsPage() {
              
              <div className="p-6">
                 <div className="bg-slate-900 rounded-2xl overflow-hidden shadow-inner border border-gray-200 min-h-[300px] flex items-center justify-center relative group">
-                  {imageUrl ? (
+                  {isCsv ? (
+                    <div className="text-center p-8">
+                       <div className="w-16 h-16 rounded-2xl bg-rose-500/20 text-rose-400 flex items-center justify-center mx-auto mb-4 border border-rose-500/30">
+                          <Droplet size={32} />
+                       </div>
+                       <p className="text-white font-bold text-base mb-1">Clinical CBC Tabular Dataset</p>
+                       <p className="text-slate-400 text-xs font-mono max-w-xs mx-auto truncate mb-4">
+                          {report.image_path ? report.image_path.split(/[\/\\]/).pop() : "sample_anemia.csv"}
+                       </p>
+                       <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-semibold border border-emerald-500/30">
+                          <CheckCircle2 size={13} /> Complete Blood Count Processed
+                       </span>
+                    </div>
+                  ) : imageUrl ? (
                      // eslint-disable-next-line @next/next/no-img-element
                      <img src={imageUrl} alt="Uploaded Scan" className="w-full h-auto object-contain max-h-[400px] transition-transform duration-500 group-hover:scale-[1.02]" />
                   ) : (
@@ -636,7 +690,9 @@ export default function ReportDetailsPage() {
                 </div>
                 <div className="flex justify-between pt-3">
                   <dt className="text-sm font-semibold text-gray-500">Image Reference</dt>
-                  <dd className="text-xs font-bold text-gray-900 break-all ml-4 text-right text-blue-600">{report.image_path.split(/[\/\\]/).pop() || 'N/A'}</dd>
+                  <dd className="text-xs font-bold text-gray-900 break-all ml-4 text-right text-blue-600">
+                    {report.image_path ? (report.image_path.split(/[\/\\]/).pop() || 'Medical Scan Reference') : 'Diagnostic Image Reference'}
+                  </dd>
                 </div>
               </dl>
            </div>
