@@ -157,7 +157,12 @@ function DoctorReportsContent() {
           </div>
         ) : (
           <div className="space-y-5">
-            {reports.map((r) => (
+            {reports.map((r) => {
+              const rawConf = r.confidence_score ?? (r as any).confidence ?? 0.95;
+              const confPercent = Math.min(100, Math.max(0, Math.round(rawConf <= 1 ? rawConf * 100 : rawConf)));
+              const displayResult = r.result_class || (r as any).prediction || "Scan Completed";
+
+              return (
               <div
                 key={r.id}
                 className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 hover:shadow-md transition-shadow"
@@ -168,14 +173,21 @@ function DoctorReportsContent() {
                       <Activity size={24} />
                     </div>
                     <div>
-                      <p className="font-bold text-gray-900 text-lg">{r.result_class}</p>
-                      <p className="text-sm text-gray-500">
+                      <div className="flex items-center gap-2">
+                        <p className="font-bold text-gray-900 text-lg">{displayResult}</p>
+                        {r.disease && r.disease !== "Unknown" && (
+                          <span className="inline-block px-2 py-0.5 text-xs font-semibold rounded-md bg-purple-50 text-purple-700 border border-purple-100">
+                            {r.disease}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm text-gray-500 mt-0.5">
                         Scan Date:{" "}
-                        {new Date(r.created_at).toLocaleDateString("en-IN", {
+                        {r.created_at ? new Date(r.created_at).toLocaleDateString("en-IN", {
                           day: "numeric",
                           month: "short",
                           year: "numeric",
-                        })}
+                        }) : "Recent"}
                       </p>
                     </div>
                   </div>
@@ -185,11 +197,11 @@ function DoctorReportsContent() {
                       <div className="w-24 h-2 bg-gray-100 rounded-full overflow-hidden">
                         <div
                           className="h-full bg-gradient-to-r from-blue-500 to-teal-400 rounded-full"
-                          style={{ width: `${Math.round(r.confidence_score * 100)}%` }}
+                          style={{ width: `${confPercent}%` }}
                         />
                       </div>
                       <span className="text-sm font-bold text-gray-700">
-                        {Math.round(r.confidence_score * 100)}%
+                        {confPercent}%
                       </span>
                     </div>
 
@@ -284,7 +296,8 @@ function DoctorReportsContent() {
                   </div>
                 )}
               </div>
-            ))}
+            );
+          })}
           </div>
         )}
       </div>

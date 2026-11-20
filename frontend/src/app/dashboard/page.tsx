@@ -98,7 +98,7 @@ export default function Dashboard() {
   };
 
   const getDiseaseIcon = (disease: string, size = 20) => {
-    const d = disease.toLowerCase();
+    const d = (disease || "").toLowerCase();
     if (d.includes("dementia")) return <Brain size={size} className="text-purple-500" />;
     if (d.includes("cancer")) return <ActivitySquare size={size} className="text-pink-500" />;
     if (d.includes("malaria")) return <Activity size={size} className="text-amber-500" />;

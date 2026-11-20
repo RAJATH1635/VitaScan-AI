@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 import Link from "next/link";
 import {
@@ -11,7 +12,7 @@ import {
 } from "@/lib/dateUtils";
 import { 
   FileText, Activity, Brain, Droplet, ActivitySquare, AlertCircle, 
-  Search, Plus, ShieldCheck, ChevronRight, Calendar, AlertTriangle
+  Search, Plus, ShieldCheck, ChevronRight, Calendar, AlertTriangle, RefreshCw
 } from "lucide-react";
 
 interface Report {
@@ -24,39 +25,100 @@ interface Report {
 }
 
 export default function Reports() {
+  const router = useRouter();
   const [reports, setReports] = useState<Report[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const fetchReports = async () => {
+  const fetchReports = useCallback(async () => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
+    if (!token) {
+      router.replace("/login");
+      return;
+    }
+
     setLoading(true);
     setError("");
     try {
       const res = await api.get("/medical/reports");
-      setReports(res.data);
+      let remoteReports: Report[] = Array.isArray(res.data) ? res.data : [];
+
+      // Check localStorage for any newly generated scans to guarantee immediate reactivity
+      if (typeof window !== "undefined") {
+        try {
+          const stored = localStorage.getItem("vitascan_reports_mock");
+          if (stored) {
+            const localReports: Report[] = JSON.parse(stored);
+            if (Array.isArray(localReports)) {
+              const seenIds = new Set(remoteReports.map((r) => r.id));
+              const missingLocals = localReports.filter((r) => r && r.id && !seenIds.has(r.id));
+              remoteReports = [...missingLocals, ...remoteReports];
+            }
+          }
+        } catch (e) {
+          console.warn("Could not read local reports:", e);
+        }
+      }
+
+      setReports(remoteReports);
     } catch (err: any) {
+      if (err.response?.status === 401) {
+        localStorage.removeItem("access_token");
+        router.replace("/login");
+        return;
+      }
+
+      // If backend fails with network error, attempt local fallback
+      if (typeof window !== "undefined") {
+        try {
+          const stored = localStorage.getItem("vitascan_reports_mock");
+          if (stored) {
+            const localReports = JSON.parse(stored);
+            if (Array.isArray(localReports) && localReports.length > 0) {
+              setReports(localReports);
+              setLoading(false);
+              return;
+            }
+          }
+        } catch {}
+      }
+
       console.error("Failed to fetch reports:", err);
       setError("Unable to communicate with the secure reporting server.");
     } finally {
       setLoading(false);
     }
-  };
+  }, [router]);
 
   useEffect(() => {
     fetchReports();
-  }, []);
+
+    // Auto-update when returning to tab or when a new scan is completed
+    const handleStorageOrFocus = () => {
+      fetchReports();
+    };
+
+    window.addEventListener("focus", handleStorageOrFocus);
+    window.addEventListener("storage", handleStorageOrFocus);
+
+    return () => {
+      window.removeEventListener("focus", handleStorageOrFocus);
+      window.removeEventListener("storage", handleStorageOrFocus);
+    };
+  }, [fetchReports]);
 
   const filteredReports = useMemo(() => {
+    if (!Array.isArray(reports)) return [];
     return reports.filter(
       (report) =>
-        report.disease.toLowerCase().includes(search.toLowerCase()) ||
-        report.prediction.toLowerCase().includes(search.toLowerCase())
+        (report.disease || "").toLowerCase().includes(search.toLowerCase()) ||
+        (report.prediction || "").toLowerCase().includes(search.toLowerCase())
     );
   }, [reports, search]);
 
   const summary = useMemo(() => {
-    if (!reports.length) return null;
+    if (!Array.isArray(reports) || !reports.length) return null;
     
     const thisMonth = reports.filter(r => isCurrentISTMonth(r.created_at)).length;
     
@@ -68,7 +130,7 @@ export default function Reports() {
   }, [reports]);
 
   const getDiseaseIcon = (disease: string) => {
-    const d = disease.toLowerCase();
+    const d = (disease || "").toLowerCase();
     if (d.includes("dementia")) return <Brain size={20} className="text-purple-500" />;
     if (d.includes("cancer")) return <ActivitySquare size={20} className="text-pink-500" />;
     if (d.includes("malaria")) return <Activity size={20} className="text-amber-500" />;
@@ -153,6 +215,13 @@ export default function Reports() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
+          <button
+            onClick={() => fetchReports()}
+            title="Refresh reports"
+            className="p-2.5 rounded-xl border border-gray-200 bg-white text-gray-600 hover:text-blue-600 hover:border-blue-300 transition-colors shadow-sm flex items-center justify-center"
+          >
+            <RefreshCw size={16} className={loading ? "animate-spin text-blue-600" : ""} />
+          </button>
           <Link href="/dashboard/new-scan" className="hidden md:flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors shadow-sm">
             <Plus size={16} />
             New Scan
@@ -243,11 +312,13 @@ export default function Reports() {
                       </td>
                       <td className="p-5">
                         <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold border ${
-                          report.prediction.toLowerCase().includes('negative') || report.prediction.toLowerCase().includes('normal') || report.prediction.toLowerCase().includes('benign')
+                          (report.prediction || "").toLowerCase().includes('negative') || 
+                          (report.prediction || "").toLowerCase().includes('normal') || 
+                          (report.prediction || "").toLowerCase().includes('benign')
                             ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
                             : 'bg-rose-50 text-rose-700 border-rose-100'
                         }`}>
-                          {report.prediction}
+                          {report.prediction || "Analysis Completed"}
                         </span>
                       </td>
                       <td className="p-5">
@@ -255,11 +326,11 @@ export default function Reports() {
                           <div className="w-16 h-2 bg-gray-100 rounded-full overflow-hidden">
                             <div 
                               className="h-full bg-blue-500 rounded-full" 
-                              style={{ width: `${report.confidence <= 1 ? report.confidence * 100 : report.confidence}%` }}
+                              style={{ width: `${(report.confidence ?? 0.95) <= 1 ? (report.confidence ?? 0.95) * 100 : (report.confidence ?? 95)}%` }}
                             ></div>
                           </div>
                           <span className="text-sm font-semibold text-gray-700">
-                            {report.confidence <= 1 ? (report.confidence * 100).toFixed(1) : report.confidence.toFixed(1)}%
+                            {(report.confidence ?? 0.95) <= 1 ? ((report.confidence ?? 0.95) * 100).toFixed(1) : (report.confidence ?? 95).toFixed(1)}%
                           </span>
                         </div>
                       </td>

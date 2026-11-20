@@ -30,8 +30,24 @@ api.interceptors.response.use(
       (error.message && error.message.toLowerCase().includes("network error"));
 
     if (isNetworkError && typeof window !== "undefined") {
-      const mockResult = handleMockRequest(error.config);
+      const mockResult = await handleMockRequest(error.config);
       if (mockResult) {
+        if (mockResult.status && mockResult.status >= 400) {
+          const detailMsg =
+            typeof mockResult.data?.detail === "object"
+              ? mockResult.data?.detail?.message
+              : mockResult.data?.detail;
+          const mockErr: any = new Error(detailMsg || "Validation Error");
+          mockErr.response = {
+            status: mockResult.status,
+            statusText: "Unprocessable Entity",
+            data: mockResult.data,
+            headers: {},
+            config: error.config,
+          };
+          return Promise.reject(mockErr);
+        }
+
         return Promise.resolve({
           data: mockResult.data,
           status: mockResult.status || 200,

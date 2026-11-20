@@ -26,6 +26,7 @@ def get_reports(
     return ReportService.get_reports(
         db=db,
         user_id=current_user.id,
+        user_role=current_user.role,
     )
 
 
@@ -42,6 +43,7 @@ def get_report(
         db=db,
         report_id=report_id,
         user_id=current_user.id,
+        user_role=current_user.role,
     )
 
     if report is None:

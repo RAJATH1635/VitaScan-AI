@@ -29,13 +29,21 @@ app.add_middleware(
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
 UPLOAD_DIR = "uploads"
+STORAGE_DIR = "storage"
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+os.makedirs(STORAGE_DIR, exist_ok=True)
 
 app.mount(
     "/uploads",
     StaticFiles(directory=UPLOAD_DIR),
     name="uploads",
+)
+
+app.mount(
+    "/storage",
+    StaticFiles(directory=STORAGE_DIR),
+    name="storage",
 )
 
 

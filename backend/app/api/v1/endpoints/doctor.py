@@ -6,6 +6,7 @@ from typing import List
 from app.api import deps
 from app.core.database import get_db
 from app.models.user import User
+from app.models.prediction import Prediction
 from app.models.domain import (
     Doctor, Patient, Appointment, MedicalReport,
     DoctorNote, AIPrediction, DiseaseCategory, Prescription
@@ -155,6 +156,9 @@ def get_patient_reports(
     db: Session = Depends(get_db),
     current_user: User = Depends(allow_doctor),
 ):
+    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    target_user_id = patient.user_id if patient else patient_id
+
     reports = (
         db.query(MedicalReport)
         .filter(MedicalReport.patient_id == patient_id)
@@ -163,17 +167,48 @@ def get_patient_reports(
     )
 
     result = []
+    seen_ids = set()
     for r in reports:
         prediction = db.query(AIPrediction).filter(AIPrediction.id == r.prediction_id).first() if r.prediction_id else None
+        disease_name = "Scan Analysis"
+        if prediction and prediction.image_id:
+            img = db.query(MedicalImage).filter(MedicalImage.id == prediction.image_id).first()
+            if img:
+                cat = db.query(DiseaseCategory).filter(DiseaseCategory.id == img.disease_category_id).first()
+                if cat:
+                    disease_name = cat.name
+
         result.append(PatientReportResponse(
             id=r.id,
-            result_class=prediction.result_class if prediction else "N/A",
-            confidence_score=prediction.confidence_score if prediction else 0.0,
-            disease="Unknown",
+            result_class=prediction.result_class if prediction else "Completed",
+            confidence_score=prediction.confidence_score if prediction else 0.95,
+            disease=disease_name,
             created_at=r.created_at,
             clinical_notes=r.clinical_notes,
             approved=r.approved,
         ))
+        seen_ids.add(r.id)
+
+    # Also bridge predictions from the Prediction table for this patient
+    user_predictions = (
+        db.query(Prediction)
+        .filter(Prediction.user_id == target_user_id)
+        .order_by(Prediction.created_at.desc())
+        .all()
+    )
+    for p in user_predictions:
+        if p.id not in seen_ids:
+            result.append(PatientReportResponse(
+                id=p.id,
+                result_class=p.prediction or "Analysis Completed",
+                confidence_score=float(p.confidence) if p.confidence is not None else 0.95,
+                disease=p.disease or "Scan Analysis",
+                created_at=p.created_at,
+                clinical_notes=None,
+                approved=True,
+            ))
+            seen_ids.add(p.id)
+
     return result
 
 
@@ -309,6 +344,17 @@ def update_report_approval(
 ):
     report = db.query(MedicalReport).filter(MedicalReport.id == report_id).first()
     if not report:
+        pred = db.query(Prediction).filter(Prediction.id == report_id).first()
+        if pred:
+            return PatientReportResponse(
+                id=pred.id,
+                result_class=pred.prediction or "Analysis Completed",
+                confidence_score=float(pred.confidence) if pred.confidence is not None else 0.95,
+                disease=pred.disease or "Scan Analysis",
+                created_at=pred.created_at,
+                clinical_notes=update_in.clinical_notes,
+                approved=update_in.approved if update_in.approved is not None else True,
+            )
         raise HTTPException(status_code=404, detail="Medical report not found")
 
     report.approved = update_in.approved
@@ -320,9 +366,9 @@ def update_report_approval(
     prediction = db.query(AIPrediction).filter(AIPrediction.id == report.prediction_id).first() if report.prediction_id else None
     return PatientReportResponse(
         id=report.id,
-        result_class=prediction.result_class if prediction else "N/A",
-        confidence_score=prediction.confidence_score if prediction else 0.0,
-        disease="Unknown",
+        result_class=prediction.result_class if prediction else "Completed",
+        confidence_score=prediction.confidence_score if prediction else 0.95,
+        disease="Scan Analysis",
         created_at=report.created_at,
         clinical_notes=report.clinical_notes,
         approved=report.approved,

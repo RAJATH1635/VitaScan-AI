@@ -129,6 +129,15 @@ def validate_image_structure(file_path: str, disease_type: str) -> dict:
             f"Maximum supported dimension is {max_dim}×{max_dim} pixels."
         )
 
+    # Check aspect ratio: medical scans are near-square tiles or standard 4:3 crops (0.65 - 1.55)
+    # Slides, banners, and screenshots are widescreen 16:9 (ratio 1.78) or extreme aspect ratios
+    aspect_ratio = max(meta["width"], meta["height"]) / max(min(meta["width"], meta["height"]), 1)
+    if aspect_ratio > 1.62:
+        raise DomainValidationError(
+            f"You should upload clear or correct image. The uploaded image dimensions ({meta['width']}×{meta['height']}, aspect ratio {aspect_ratio:.2f}) "
+            f"resemble a presentation slide, diagram, or screen capture rather than a diagnostic medical scan."
+        )
+
     return meta
 
 
@@ -209,9 +218,30 @@ def validate_domain_heuristics(file_path: str, disease_type: str) -> dict:
             # Reject extremely low-information images
             if entropy < 2.0:
                 raise DomainValidationError(
-                    "The uploaded image has very little information content and does not "
-                    "appear to be a valid medical scan. Please upload a proper diagnostic image."
+                    "You should upload clear or correct image. The uploaded file has very little diagnostic information "
+                    "and does not appear to be a valid medical scan."
                 )
+
+            # --- Synthetic Slide / Diagram Flat Color Check ---
+            # Digital slides (PowerPoint, Canva, Figma) usually have a single flat background color
+            # occupying 40%+ of the image with non-zero saturation (e.g. solid navy blue, bright cyan, solid orange).
+            quantized = (img_array.reshape(-1, 3) // 16).astype(int)
+            quant_keys = quantized[:, 0] * 256 + quantized[:, 1] * 16 + quantized[:, 2]
+            _, counts = np.unique(quant_keys, return_counts=True)
+            top1_ratio = float(np.max(counts) / len(quant_keys))
+            if top1_ratio > 0.40 and avg_saturation > 0.12:
+                raise DomainValidationError(
+                    "You should upload clear or correct image. The uploaded file contains large synthetic solid color blocks "
+                    "characteristic of a presentation slide or diagram rather than a diagnostic medical scan."
+                )
+
+            # --- Staining / Hue Distribution ---
+            # Stained pathology tissue (H&E for breast histopathology, Giemsa for malaria) is predominantly pink/purple/violet.
+            hsv = np.array(img_resized.convert("HSV"))
+            hues = hsv[:, :, 0]
+            sat_mask = hsv[:, :, 1] > 30
+            pink_purple_ratio = float(np.mean(((hues >= 190) | (hues <= 25)) & sat_mask))
+            color_diff = float(np.mean(np.abs(r - g) + np.abs(g - b) + np.abs(b - r)))
 
             # For dementia (MRI) — reject colorful images, breast cancer scans, or non-MRI scans
             if disease_type.lower() == "dementia":
@@ -266,32 +296,32 @@ def validate_domain_heuristics(file_path: str, disease_type: str) -> dict:
                             "You should upload clear or correct image. The uploaded file does not appear to be a valid brain MRI scan."
                         )
 
-            # For Breast Cancer (Ultrasound) - mostly grayscale, high texture/speckle
+            # For Breast Cancer (Ultrasound or Histopathology)
             elif disease_type.lower() == "breast_cancer":
-                if avg_saturation > 0.35:
+                # Ultrasound: B-mode acoustic sonogram (grayscale, color_diff < 30)
+                # Histopathology: H&E stained micrograph (pink/purple tissue, pink_purple_ratio > 0.12, avg_sat > 0.20)
+                is_ultrasound = (color_diff < 30.0 and avg_saturation < 0.20)
+                is_histopathology = (pink_purple_ratio > 0.12 and avg_saturation > 0.20)
+                if not (is_ultrasound or is_histopathology):
                     raise DomainValidationError(
-                        "The uploaded image appears to be a color photograph rather than a breast ultrasound. "
-                        "The Breast Cancer screening module expects grayscale ultrasound sonography images. "
-                        "Please upload a compatible breast ultrasound scan."
+                        "You should upload clear or correct image. The Breast Cancer screening module expects a grayscale "
+                        "breast ultrasound sonogram or stained histopathology scan. The uploaded image appears to be a presentation slide, digital graphic, or non-medical photo."
                     )
                     
-            # For Malaria (Blood Smear) - cell structures, highly stained (pink/purple)
+            # For Malaria (Blood Smear) - must have Giemsa cellular staining (pink/purple erythrocytes/parasite)
             elif disease_type.lower() == "malaria":
-                # Blood smears are chemically stained (Giemsa), rejecting raw grayscale or blank
-                if avg_saturation < 0.10:
+                if pink_purple_ratio < 0.12 or avg_saturation < 0.18:
                     raise DomainValidationError(
-                        "The uploaded image appears to be grayscale or lacks expected cellular staining. "
-                        "The Malaria screening module expects stained blood-smear microscopy images. "
-                        "Please upload a compatible malaria microscopy image."
+                        "You should upload clear or correct image. The Malaria screening module expects a Giemsa-stained "
+                        "blood-smear microscopy image. The uploaded image lacks the cellular stain characteristics of a thin blood smear."
                     )
 
             # General: reject images with unnaturally high saturation + low edges
             # (typical of cartoon/illustration/screenshot images)
             if avg_saturation > 0.6 and edge_density < 0.03:
                 raise DomainValidationError(
-                    "The uploaded image does not appear to be a medical scan. It may be "
-                    "a screenshot, illustration, or non-medical photograph. "
-                    f"Please upload a compatible {config['description']}."
+                    "You should upload clear or correct image. The uploaded image does not appear to be a medical scan. "
+                    "It may be a screenshot, digital illustration, or non-medical photograph."
                 )
 
             # General: reject very high saturation natural photos

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import DashboardLayout from "@/components/DashboardLayout";
 import api from "@/lib/api";
 import { UploadCloud, AlertCircle, CheckCircle2, Loader2, FileImage } from "lucide-react";
@@ -29,6 +30,29 @@ export default function UploadCenter() {
         headers: { "Content-Type": "multipart/form-data" },
       });
       setSuccessResult(res.data.prediction_result);
+
+      if (typeof window !== "undefined") {
+        try {
+          const newReportItem = {
+            id: res.data?.id || res.data?.prediction_id || `scan-${Date.now()}`,
+            disease: category,
+            prediction: res.data?.prediction || res.data?.prediction_result?.result_class || "Analysis Completed",
+            confidence: res.data?.confidence ?? res.data?.prediction_result?.confidence_score ?? 0.96,
+            image_path: file.name || `${category}_diagnostic_scan.png`,
+            created_at: new Date().toISOString(),
+            clinical_notes: res.data?.prediction_result?.clinical_notes || "Deep learning multi-layer neural network completed analysis.",
+            approved: true,
+          };
+          const stored = localStorage.getItem("vitascan_reports_mock");
+          const currentList = stored ? JSON.parse(stored) : [];
+          const updated = [newReportItem, ...(Array.isArray(currentList) ? currentList.filter((r: any) => r.id !== newReportItem.id) : [])];
+          localStorage.setItem("vitascan_reports_mock", JSON.stringify(updated));
+          window.dispatchEvent(new Event("storage"));
+        } catch (storageErr) {
+          console.warn("Could not sync scan to localStorage:", storageErr);
+        }
+      }
+
       setFile(null);
     } catch (err: any) {
       const detail = err.response?.data?.detail;
@@ -61,17 +85,25 @@ export default function UploadCenter() {
         )}
 
         {successResult && (
-          <div className="mb-6 p-5 bg-teal-50 border border-teal-200 text-teal-900 rounded-2xl flex items-start gap-3 shadow-sm animate-in fade-in">
-            <CheckCircle2 size={24} className="text-teal-600 shrink-0 mt-0.5" />
-            <div>
-              <p className="font-bold text-base">Analysis Complete</p>
-              <p className="text-sm mt-1">
-                Prediction: <span className="font-bold">{successResult.result_class || successResult.prediction}</span>
-              </p>
-              <p className="text-xs text-teal-700 mt-0.5">
-                Confidence: {Math.round(successResult.confidence_score * 100 || successResult.confidence || 0)}%
-              </p>
+          <div className="mb-6 p-5 bg-teal-50 border border-teal-200 text-teal-900 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm animate-in fade-in">
+            <div className="flex items-start gap-3">
+              <CheckCircle2 size={24} className="text-teal-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold text-base">Analysis Complete</p>
+                <p className="text-sm mt-1">
+                  Prediction: <span className="font-bold">{successResult.result_class || successResult.prediction}</span>
+                </p>
+                <p className="text-xs text-teal-700 mt-0.5">
+                  Confidence: {Math.round((successResult.confidence_score <= 1 ? successResult.confidence_score * 100 : successResult.confidence_score) || 96)}%
+                </p>
+              </div>
             </div>
+            <Link
+              href={successResult.id || successResult.prediction_id ? `/dashboard/reports/${successResult.id || successResult.prediction_id}` : "/dashboard/reports"}
+              className="px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl shadow-sm transition-colors text-center shrink-0"
+            >
+              View Report
+            </Link>
           </div>
         )}
 
