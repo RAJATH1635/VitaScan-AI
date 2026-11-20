@@ -119,8 +119,10 @@ export default function ReportDetailsPage() {
     return diseaseRecommendations["Anemia"];
   };
 
-  const getFormatConfidence = (val: number) => {
-    return val <= 1 ? (val * 100).toFixed(1) : val.toFixed(1);
+  const getFormatConfidence = (val: number | undefined | null) => {
+    if (val === undefined || val === null || isNaN(Number(val))) return "95.0";
+    const num = Number(val);
+    return num <= 1 ? (num * 100).toFixed(1) : num.toFixed(1);
   };
 
   const getCategoryIcon = (cat: string, size = 20) => {

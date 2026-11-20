@@ -52,7 +52,16 @@ export default function Reports() {
             const localReports: Report[] = JSON.parse(stored);
             if (Array.isArray(localReports)) {
               const seenIds = new Set(remoteReports.map((r) => r.id));
-              const missingLocals = localReports.filter((r) => r && r.id && !seenIds.has(r.id));
+              const legacyIds = new Set(["rep-dem-101", "rep-bc-202", "rep-mal-303", "rep-ane-404"]);
+              const missingLocals = localReports.filter((r) => 
+                r && r.id && 
+                !seenIds.has(r.id) && 
+                !legacyIds.has(r.id) &&
+                !String(r.id).startsWith("rep-dem-") &&
+                !String(r.id).startsWith("rep-bc-") &&
+                !String(r.id).startsWith("rep-mal-") &&
+                !String(r.id).startsWith("rep-ane-")
+              );
               remoteReports = [...missingLocals, ...remoteReports];
             }
           }

@@ -11,65 +11,53 @@ interface MockResponse {
   data: any;
 }
 
-// Initial mock reports across the 4 core clinical conditions
-const INITIAL_REPORTS = [
-  {
-    id: "rep-dem-101",
-    disease: "dementia",
-    prediction: "Mild Dementia Detected (CDR 0.5 - Hippocampal Volume Reduction)",
-    confidence: 0.964,
-    image_path: "brain_mri_t1_scan.png",
-    created_at: new Date(Date.now() - 3600000 * 2).toISOString(),
-    clinical_notes: "Coronal T1-weighted MRI demonstrates bilateral hippocampal atrophy with prominent temporal horns.",
-    approved: true,
-  },
-  {
-    id: "rep-bc-202",
-    disease: "breast_cancer",
-    prediction: "Malignant Ductal Carcinoma Detected (BI-RADS 5)",
-    confidence: 0.942,
-    image_path: "breast_ultrasound_biopsy.png",
-    created_at: new Date(Date.now() - 3600000 * 26).toISOString(),
-    clinical_notes: "Histopathology shows high-grade invasive ductal carcinoma with irregular nuclear contours.",
-    approved: true,
-  },
-  {
-    id: "rep-mal-303",
-    disease: "malaria",
-    prediction: "Plasmodium Falciparum Ring Form Trophozoites",
-    confidence: 0.978,
-    image_path: "malaria_blood_smear.png",
-    created_at: new Date(Date.now() - 3600000 * 54).toISOString(),
-    clinical_notes: "Giemsa-stained thin blood smear displays double-chromatin ring-form trophozoites in erythrocytes.",
-    approved: false,
-  },
-  {
-    id: "rep-ane-404",
-    disease: "anemia",
-    prediction: "Microcytic Hypochromic Iron-Deficiency Anemia",
-    confidence: 0.935,
-    image_path: "complete_blood_count_cbc.csv",
-    created_at: new Date(Date.now() - 3600000 * 96).toISOString(),
-    clinical_notes: "Peripheral blood smear reveals anisopoikilocytosis and pale central erythrocyte zones.",
-    approved: true,
-  },
-];
+// Initial patient reports - cleared for pristine live demonstration
+const INITIAL_REPORTS: any[] = [];
 
-// Helper to get all reports merged with localStorage
+// Helper to get all user-generated reports from localStorage (cleans previous demo reports)
 function getStoredReports(): any[] {
-  if (typeof window === "undefined") return INITIAL_REPORTS;
-  const stored = localStorage.getItem("vitascan_reports_mock");
+  if (typeof window === "undefined") return [];
+
+  // Automatically purge legacy dummy demo reports from previous sessions
+  try {
+    const isCleaned = localStorage.getItem("vitascan_reports_cleared_v5");
+    if (!isCleaned) {
+      localStorage.removeItem("vitascan_reports_mock");
+      localStorage.removeItem("vitascan_reports");
+      localStorage.setItem("vitascan_reports_cleared_v5", "true");
+      return [];
+    }
+  } catch {}
+
+  const stored = localStorage.getItem("vitascan_reports_mock") || localStorage.getItem("vitascan_reports");
   if (!stored) {
-    try {
-      localStorage.setItem("vitascan_reports_mock", JSON.stringify(INITIAL_REPORTS));
-    } catch {}
-    return INITIAL_REPORTS;
+    return [];
   }
   try {
     const parsed = JSON.parse(stored);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_REPORTS;
+    if (!Array.isArray(parsed)) return [];
+    
+    // Filter out any legacy dummy reports
+    const legacyIds = new Set(["rep-dem-101", "rep-bc-202", "rep-mal-303", "rep-ane-404"]);
+    const filtered = parsed.filter(
+      (r: any) =>
+        r &&
+        r.id &&
+        !legacyIds.has(r.id) &&
+        !String(r.id).startsWith("rep-dem-") &&
+        !String(r.id).startsWith("rep-bc-") &&
+        !String(r.id).startsWith("rep-mal-") &&
+        !String(r.id).startsWith("rep-ane-")
+    );
+    if (filtered.length !== parsed.length) {
+      try {
+        localStorage.setItem("vitascan_reports_mock", JSON.stringify(filtered));
+        localStorage.setItem("vitascan_reports", JSON.stringify(filtered));
+      } catch {}
+    }
+    return filtered;
   } catch {
-    return INITIAL_REPORTS;
+    return [];
   }
 }
 
@@ -80,6 +68,7 @@ function saveReport(newReport: any) {
   const updated = [newReport, ...current.filter((r: any) => r.id !== newReport.id)];
   try {
     localStorage.setItem("vitascan_reports_mock", JSON.stringify(updated));
+    localStorage.setItem("vitascan_reports", JSON.stringify(updated));
   } catch {}
 }
 
@@ -921,13 +910,18 @@ export async function handleMockRequest(config: any): Promise<MockResponse | nul
   // 4. PATIENT DASHBOARD: Summary
   if (path === "/medical/dashboard/summary" && method === "get") {
     const allReports = getStoredReports();
+    const avgConfidence =
+      allReports.length > 0
+        ? allReports.reduce((acc: number, r: any) => acc + (r.confidence || 0), 0) / allReports.length
+        : 0;
+
     return {
       status: 200,
       data: {
         total_predictions: allReports.length,
-        total_diseases: 4,
-        average_confidence: 0.958,
-        last_prediction: allReports[0]?.created_at || new Date().toISOString(),
+        total_diseases: allReports.length > 0 ? new Set(allReports.map((r: any) => r.disease)).size : 0,
+        average_confidence: avgConfidence,
+        last_prediction: allReports[0]?.created_at || null,
       },
     };
   }
@@ -951,25 +945,26 @@ export async function handleMockRequest(config: any): Promise<MockResponse | nul
     return {
       status: 200,
       data: [
-        { name: "Dementia", value: Math.max(countDem, 1) },
-        { name: "Breast Cancer", value: Math.max(countBc, 1) },
-        { name: "Malaria", value: Math.max(countMal, 1) },
-        { name: "Anemia", value: Math.max(countAne, 1) },
+        { name: "Dementia", value: countDem },
+        { name: "Breast Cancer", value: countBc },
+        { name: "Malaria", value: countMal },
+        { name: "Anemia", value: countAne },
       ],
     };
   }
 
   // 7. PATIENT DASHBOARD: Confidence Trend
   if (path === "/medical/dashboard/confidence-trend" && method === "get") {
+    const all = getStoredReports();
+    if (all.length === 0) {
+      return { status: 200, data: [] };
+    }
     return {
       status: 200,
-      data: [
-        { date: "Day 1", confidence: 94.8 },
-        { date: "Day 2", confidence: 96.2 },
-        { date: "Day 3", confidence: 93.9 },
-        { date: "Day 4", confidence: 97.4 },
-        { date: "Day 5", confidence: 95.8 },
-      ],
+      data: all.map((r: any, idx: number) => ({
+        date: `Scan ${idx + 1}`,
+        confidence: Number(((r.confidence <= 1 ? r.confidence * 100 : r.confidence) || 95).toFixed(1)),
+      })),
     };
   }
 
@@ -985,7 +980,14 @@ export async function handleMockRequest(config: any): Promise<MockResponse | nul
   if (path.startsWith("/medical/reports/") && method === "get") {
     const reportId = path.replace("/medical/reports/", "");
     const allReports = getStoredReports();
-    const found = allReports.find((r: any) => r.id === reportId) || allReports[0] || INITIAL_REPORTS[0];
+    const found = allReports.find((r: any) => r.id === reportId);
+
+    if (!found) {
+      return {
+        status: 404,
+        data: { detail: "Medical report not found." },
+      };
+    }
 
     return {
       status: 200,
@@ -1229,7 +1231,7 @@ export async function handleMockRequest(config: any): Promise<MockResponse | nul
   if (path.includes("/doctor/patients/") && path.endsWith("/reports") && method === "get") {
     return {
       status: 200,
-      data: INITIAL_REPORTS,
+      data: getStoredReports(),
     };
   }
 
@@ -1300,11 +1302,15 @@ export async function handleMockRequest(config: any): Promise<MockResponse | nul
 
   // 20. GLOBAL SEARCH
   if (path.startsWith("/search")) {
+    const allReports = getStoredReports();
     return {
       status: 200,
       data: {
         patients: [{ id: "pat-1", name: "RAJATH B G", email: "rajathbg123@gmail.com" }],
-        reports: [{ id: "rep-dem-101", title: "Dementia MRI Scan (RAJATH B G)" }],
+        reports: allReports.map((r: any) => ({
+          id: r.id,
+          title: `${r.disease} Scan (${r.prediction})`,
+        })),
       },
     };
   }
@@ -1315,7 +1321,7 @@ export async function handleMockRequest(config: any): Promise<MockResponse | nul
     const storageKey = `vitascan_notifications_${role.toLowerCase()}`;
     const stored = localStorage.getItem(storageKey);
     let items = stored
-      ? JSON.parse(stored)
+      ? JSON.parse(stored).filter((item: any) => !item.link?.includes("rep-dem-101"))
       : role === "DOCTOR"
       ? [
           {
@@ -1352,13 +1358,13 @@ export async function handleMockRequest(config: any): Promise<MockResponse | nul
       : [
           {
             id: "notif-pat-1",
-            type: "scan",
-            title: "AI Screening Analysis Ready",
-            message: "Your Dementia MRI scan analysis has finished with 96.4% confidence. 3 specialist doctors are available for consultation.",
-            created_at: new Date(Date.now() - 3600000 * 2).toISOString(),
+            type: "system",
+            title: "Welcome to VitaScan AI",
+            message: "Your AI diagnostic screening portal is ready. Upload a medical scan to generate your first intelligent clinical report.",
+            created_at: new Date().toISOString(),
             is_read: false,
-            link: "/dashboard/reports/rep-dem-101",
-            linkText: "View Clinical Report",
+            link: "/dashboard/new-scan",
+            linkText: "Start Screening Scan",
           },
           {
             id: "notif-pat-2",
