@@ -303,7 +303,7 @@ function LoginFormContent() {
               <div>
                 <p className="text-sm font-semibold text-white">Patient Portal</p>
                 <p className="text-xs text-slate-400">
-                  Screen MRI, CT & Ultrasound images with instant AI analysis & specialist referrals
+                  Screen MRI, Ultrasound & scan images with instant AI analysis & specialist referrals
                 </p>
               </div>
             </div>
@@ -426,7 +426,7 @@ function LoginFormContent() {
                   <div className="space-y-2 mb-6 border-t border-slate-100 pt-3 text-xs text-slate-600">
                     <div className="flex items-center gap-2">
                       <CheckCircle2 size={14} className="text-cyan-600 shrink-0" />
-                      <span>Upload MRI, CT, & scan images</span>
+                      <span>Upload MRI, Ultrasound & scan images</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <CheckCircle2 size={14} className="text-cyan-600 shrink-0" />

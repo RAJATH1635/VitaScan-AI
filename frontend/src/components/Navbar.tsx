@@ -242,7 +242,7 @@ export default function Navbar() {
           { id: "sugg-notes", type: "action", title: "Consultation Notes", subtitle: "Clinical notes & observations", url: "/doctor/notes", badge: "Notes" },
         ]
       : [
-          { id: "sugg-scan", type: "action", title: "New Diagnostic Scan", subtitle: "Upload MRI, CT, or Ultrasound image", url: "/dashboard/new-scan", badge: "AI Screen" },
+          { id: "sugg-scan", type: "action", title: "New Diagnostic Scan", subtitle: "Upload MRI, Ultrasound & scan images", url: "/dashboard/new-scan", badge: "AI Screen" },
           { id: "sugg-rep", type: "report", title: "Medical Reports", subtitle: "Review past scan results and diagnoses", url: "/dashboard/reports", badge: "History" },
           { id: "sugg-app", type: "appointment", title: "Book Appointment", subtitle: "Schedule consultation with a doctor", url: "/dashboard/appointments", badge: "Visit" },
           { id: "sugg-prof", type: "action", title: "Health Profile", subtitle: "Update medical details and contact info", url: "/dashboard/profile", badge: "Profile" },
