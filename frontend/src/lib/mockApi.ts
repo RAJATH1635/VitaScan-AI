@@ -72,54 +72,8 @@ function saveReport(newReport: any) {
   } catch {}
 }
 
-// Initial mock appointments
-const INITIAL_APPOINTMENTS = [
-  {
-    id: "appt-1",
-    patient_name: "RAJATH B G",
-    doctor_name: "Dr. Ramesh Iyer",
-    doctor: "Dr. Ramesh Iyer",
-    specialty: "Dementia & Cognitive Neurology",
-    hospital: "Manipal Hospital",
-    location: "Bengaluru, Karnataka",
-    appointment_date: new Date(Date.now() + 86400000 * 2).toISOString().split("T")[0],
-    appointment_time: "10:30 AM",
-    disease: "Dementia (Brain MRI)",
-    disease_type: "dementia",
-    notes: "Follow-up consultation for cognitive assessment & neuro-imaging correlation",
-    status: "upcoming",
-  },
-  {
-    id: "appt-2",
-    patient_name: "Anita Sharma",
-    doctor_name: "Dr. Meenakshi Sundaram",
-    doctor: "Dr. Meenakshi Sundaram",
-    specialty: "Surgical Oncology & Breast Reconstruction",
-    hospital: "Apollo Proton Cancer Centre",
-    location: "Chennai, Tamil Nadu",
-    appointment_date: new Date(Date.now() + 86400000 * 4).toISOString().split("T")[0],
-    appointment_time: "02:00 PM",
-    disease: "Breast Cancer (Biopsy Review)",
-    disease_type: "breast_cancer",
-    notes: "Clinical review of ultrasound scan and biopsy results",
-    status: "upcoming",
-  },
-  {
-    id: "appt-3",
-    patient_name: "Karthik Verma",
-    doctor_name: "Dr. Prathap Shenoy",
-    doctor: "Dr. Prathap Shenoy",
-    specialty: "Infectious Diseases & Tropical Medicine",
-    hospital: "KMC Hospital",
-    location: "Mangaluru, Karnataka",
-    appointment_date: new Date(Date.now() + 86400000 * 7).toISOString().split("T")[0],
-    appointment_time: "11:15 AM",
-    disease: "Malaria (Blood Smear)",
-    disease_type: "malaria",
-    notes: "Post-antimalarial therapy blood smear evaluation",
-    status: "upcoming",
-  },
-];
+// Initial mock appointments - empty for clean first-scan experience
+const INITIAL_APPOINTMENTS: any[] = [];
 
 
 interface ScanAnalysisResult {
@@ -723,43 +677,75 @@ function saveMockUser(user: any) {
 
 // Helper to get appointments synchronized with localStorage for both patient and doctor views
 function getStoredAppointments(): any[] {
-  if (typeof window === "undefined") return INITIAL_APPOINTMENTS;
-  const stored = localStorage.getItem("vitascan_appointments_mock");
-  let rawAppts = stored ? JSON.parse(stored) : INITIAL_APPOINTMENTS;
+  if (typeof window === "undefined") return [];
 
-  if (!Array.isArray(rawAppts)) return INITIAL_APPOINTMENTS;
-
-  return rawAppts.map((a: any, idx: number) => {
-    const rawDate = a.appointment_date || new Date(Date.now() + 86400000 * (idx + 1)).toISOString();
-    let apptTime = a.appointment_time;
-    if (!apptTime || apptTime === "Invalid Date" || apptTime.includes("undefined")) {
-      if (rawDate.includes("T")) {
-        const d = new Date(rawDate);
-        apptTime = !isNaN(d.getTime()) && (d.getHours() !== 0 || d.getMinutes() !== 0)
-          ? d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
-          : "10:00 AM";
-      } else {
-        apptTime = "10:00 AM";
-      }
+  // Migration: automatically purge legacy mock appointments from previous sessions
+  try {
+    const isCleaned = localStorage.getItem("vitascan_appts_cleared_v4");
+    if (!isCleaned) {
+      localStorage.removeItem("vitascan_appointments_mock");
+      localStorage.setItem("vitascan_appts_cleared_v4", "true");
+      return [];
     }
-    return {
-      ...a,
-      id: a.id || `appt-${idx + 1}`,
-      patient_name: a.patient_name || "Patient",
-      patient_email: a.patient_email || "patient@vitascan.ai",
-      doctor: a.doctor || a.doctor_name || "Dr. Ramesh Iyer",
-      doctor_name: a.doctor_name || a.doctor || "Dr. Ramesh Iyer",
-      specialty: a.specialty || (a.disease ? `${a.disease} Specialist` : "Medical Specialist"),
-      hospital: a.hospital || "Manipal Hospital",
-      location: a.location || "Bengaluru, Karnataka",
-      appointment_date: rawDate.includes("T") ? rawDate.split("T")[0] : rawDate,
-      appointment_time: apptTime,
-      disease: a.disease || a.disease_type || "General Consultation",
-      disease_type: a.disease_type || a.disease || "general",
-      notes: a.notes || "Requested clinical consultation",
-      status: a.status || "upcoming",
-    };
-  });
+  } catch {}
+
+  const stored = localStorage.getItem("vitascan_appointments_mock");
+  if (!stored) {
+    return [];
+  }
+
+  try {
+    const rawAppts = JSON.parse(stored);
+    if (!Array.isArray(rawAppts)) return [];
+
+    const legacyApptIds = new Set(["appt-1", "appt-2", "appt-3"]);
+    const filtered = rawAppts.filter(
+      (a: any) =>
+        a &&
+        a.id &&
+        !legacyApptIds.has(a.id)
+    );
+
+    if (filtered.length !== rawAppts.length) {
+      try {
+        localStorage.setItem("vitascan_appointments_mock", JSON.stringify(filtered));
+      } catch {}
+    }
+
+    return filtered.map((a: any, idx: number) => {
+      const rawDate = a.appointment_date || new Date().toISOString();
+      let apptTime = a.appointment_time;
+      if (!apptTime || apptTime === "Invalid Date" || apptTime.includes("undefined")) {
+        if (rawDate.includes("T")) {
+          const d = new Date(rawDate);
+          apptTime = !isNaN(d.getTime()) && (d.getHours() !== 0 || d.getMinutes() !== 0)
+            ? d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
+            : "10:00 AM";
+        } else {
+          apptTime = "10:00 AM";
+        }
+      }
+      return {
+        ...a,
+        id: a.id || `appt-${idx + 1}`,
+        patient_name: a.patient_name || "Patient",
+        patient_email: a.patient_email || "patient@vitascan.ai",
+        doctor: a.doctor || a.doctor_name || "Dr. Ramesh Iyer",
+        doctor_name: a.doctor_name || a.doctor || "Dr. Ramesh Iyer",
+        specialty: a.specialty || (a.disease ? `${a.disease} Specialist` : "Medical Specialist"),
+        hospital: a.hospital || "Manipal Hospital",
+        location: a.location || "Bengaluru, Karnataka",
+        appointment_date: rawDate.includes("T") ? rawDate.split("T")[0] : rawDate,
+        appointment_time: apptTime,
+        disease: a.disease || a.disease_type || "General Consultation",
+        disease_type: a.disease_type || a.disease || "general",
+        notes: a.notes || "Requested clinical consultation",
+        status: a.status || "upcoming",
+      };
+    });
+  } catch {
+    return [];
+  }
 }
 
 export async function handleMockRequest(config: any): Promise<MockResponse | null> {
@@ -1393,35 +1379,23 @@ export async function handleMockRequest(config: any): Promise<MockResponse | nul
     const storageKey = `vitascan_notifications_${role.toLowerCase()}`;
     const stored = localStorage.getItem(storageKey);
     let items = stored
-      ? JSON.parse(stored).filter((item: any) => !item.link?.includes("rep-dem-101"))
+      ? JSON.parse(stored).filter(
+          (item: any) =>
+            !item.link?.includes("rep-dem-101") &&
+            item.id !== "notif-pat-2" &&
+            item.id !== "notif-pat-4" &&
+            item.id !== "notif-doc-1" &&
+            item.id !== "notif-doc-2" &&
+            !item.message?.includes("Oct 18, 2026")
+        )
       : role === "DOCTOR"
       ? [
-          {
-            id: "notif-doc-1",
-            type: "appointment",
-            title: "New Patient Appointment Scheduled",
-            message: "Patient RAJATH B G scheduled a consultation for Dementia & Cognitive Review on Oct 18, 2026.",
-            created_at: new Date(Date.now() - 3600000).toISOString(),
-            is_read: false,
-            link: "/doctor/appointments",
-            linkText: "View Appointment",
-          },
-          {
-            id: "notif-doc-2",
-            type: "scan",
-            title: "AI Screening Awaiting Validation",
-            message: "A new brain MRI screening with high confidence (96.4%) is pending your clinical review.",
-            created_at: new Date(Date.now() - 3600000 * 5).toISOString(),
-            is_read: false,
-            link: "/doctor/reports",
-            linkText: "Review Scan",
-          },
           {
             id: "notif-doc-3",
             type: "system",
             title: "Doctor Workspace Verified",
-            message: "Your medical credentials are authenticated. You can prescribe treatments and write notes.",
-            created_at: new Date(Date.now() - 86400000).toISOString(),
+            message: "Your medical credentials are authenticated. Ready to review patient diagnostic scans and scheduled consultations.",
+            created_at: new Date().toISOString(),
             is_read: true,
             link: "/doctor/profile",
             linkText: "View Profile",
@@ -1439,32 +1413,14 @@ export async function handleMockRequest(config: any): Promise<MockResponse | nul
             linkText: "Start Screening Scan",
           },
           {
-            id: "notif-pat-2",
-            type: "appointment",
-            title: "Specialist Appointment Confirmed",
-            message: "Your appointment with Dr. Ramesh Iyer at Manipal Hospital, Bengaluru is scheduled for Oct 18, 2026.",
-            created_at: new Date(Date.now() - 86400000).toISOString(),
-            is_read: false,
-            link: "/dashboard/appointments",
-            linkText: "Manage Appointments",
-          },
-          {
             id: "notif-pat-3",
             type: "doctor",
             title: "Specialist Referrals Available",
-            message: "12 specialist doctors in Bengaluru, Mumbai, Chennai, and other locations are available for immediate teleconsultation.",
-            created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
+            message: "Specialist doctors across multiple verified locations are available for clinical consultations and report reviews.",
+            created_at: new Date().toISOString(),
             is_read: true,
             link: "/dashboard/appointments",
             linkText: "Explore Specialists",
-          },
-          {
-            id: "notif-pat-4",
-            type: "prescription",
-            title: "Prescription Issued by Doctor",
-            message: "Dr. Sunita Deshmukh has prescribed a cognitive support protocol. Check your medical profile for instructions.",
-            created_at: new Date(Date.now() - 86400000 * 3).toISOString(),
-            is_read: true,
           },
         ];
 
