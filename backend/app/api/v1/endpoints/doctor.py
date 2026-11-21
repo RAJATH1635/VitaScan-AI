@@ -104,6 +104,33 @@ def get_doctor_appointments(
             notes=appt.notes,
             status="upcoming" if appt.appointment_date > now else "past",
         ))
+
+    try:
+        from app.models.patient_appointment import PatientAppointment
+        patient_appts = (
+            db.query(PatientAppointment)
+            .order_by(PatientAppointment.appointment_date.desc())
+            .all()
+        )
+        for pa in patient_appts:
+            p_user = db.query(User).filter(User.id == pa.user_id).first()
+            try:
+                raw_d = str(pa.appointment_date)
+                appt_dt = datetime.strptime(raw_d.split("T")[0], "%Y-%m-%d")
+            except Exception:
+                appt_dt = datetime.utcnow()
+
+            result.append(DoctorAppointmentResponse(
+                id=pa.id,
+                patient_name=p_user.full_name if p_user else "Patient",
+                patient_email=p_user.email if p_user else "",
+                appointment_date=appt_dt,
+                notes=f"[{pa.disease or 'General'}] {pa.notes or ''}".strip(),
+                status="upcoming" if appt_dt >= now else "past",
+            ))
+    except Exception as e:
+        print("Error fetching PatientAppointment:", e)
+
     return result
 
 
@@ -439,4 +466,4 @@ def create_prescription(
         dosage=new_pres.dosage,
         instructions=new_pres.instructions,
         created_at=new_pres.created_at,
-    )
+    )

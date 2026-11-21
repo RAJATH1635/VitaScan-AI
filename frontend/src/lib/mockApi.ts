@@ -720,6 +720,48 @@ function saveMockUser(user: any) {
   } catch {}
 }
 
+
+// Helper to get appointments synchronized with localStorage for both patient and doctor views
+function getStoredAppointments(): any[] {
+  if (typeof window === "undefined") return INITIAL_APPOINTMENTS;
+  const stored = localStorage.getItem("vitascan_appointments_mock");
+  let rawAppts = stored ? JSON.parse(stored) : INITIAL_APPOINTMENTS;
+
+  if (!Array.isArray(rawAppts)) return INITIAL_APPOINTMENTS;
+
+  return rawAppts.map((a: any, idx: number) => {
+    const rawDate = a.appointment_date || new Date(Date.now() + 86400000 * (idx + 1)).toISOString();
+    let apptTime = a.appointment_time;
+    if (!apptTime || apptTime === "Invalid Date" || apptTime.includes("undefined")) {
+      if (rawDate.includes("T")) {
+        const d = new Date(rawDate);
+        apptTime = !isNaN(d.getTime()) && (d.getHours() !== 0 || d.getMinutes() !== 0)
+          ? d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
+          : "10:00 AM";
+      } else {
+        apptTime = "10:00 AM";
+      }
+    }
+    return {
+      ...a,
+      id: a.id || `appt-${idx + 1}`,
+      patient_name: a.patient_name || "Patient",
+      patient_email: a.patient_email || "patient@vitascan.ai",
+      doctor: a.doctor || a.doctor_name || "Dr. Ramesh Iyer",
+      doctor_name: a.doctor_name || a.doctor || "Dr. Ramesh Iyer",
+      specialty: a.specialty || (a.disease ? `${a.disease} Specialist` : "Medical Specialist"),
+      hospital: a.hospital || "Manipal Hospital",
+      location: a.location || "Bengaluru, Karnataka",
+      appointment_date: rawDate.includes("T") ? rawDate.split("T")[0] : rawDate,
+      appointment_time: apptTime,
+      disease: a.disease || a.disease_type || "General Consultation",
+      disease_type: a.disease_type || a.disease || "general",
+      notes: a.notes || "Requested clinical consultation",
+      status: a.status || "upcoming",
+    };
+  });
+}
+
 export async function handleMockRequest(config: any): Promise<MockResponse | null> {
   if (typeof window === "undefined") return null;
 
@@ -1113,36 +1155,7 @@ export async function handleMockRequest(config: any): Promise<MockResponse | nul
 
   // 11. APPOINTMENTS: List & Create
   if (path.startsWith("/medical/appointments") || path.startsWith("/medical/appointments/")) {
-    const stored = localStorage.getItem("vitascan_appointments_mock");
-    let rawAppts = stored ? JSON.parse(stored) : INITIAL_APPOINTMENTS;
-
-    // Sanitize all stored and initial appointments so dates and times never show 'Invalid Date'
-    let appts = Array.isArray(rawAppts)
-      ? rawAppts.map((a: any, idx: number) => {
-          const rawDate = a.appointment_date || new Date(Date.now() + 86400000 * (idx + 1)).toISOString();
-          let apptTime = a.appointment_time;
-          if (!apptTime || apptTime === "Invalid Date" || apptTime.includes("undefined")) {
-            if (rawDate.includes("T")) {
-              const d = new Date(rawDate);
-              apptTime = !isNaN(d.getTime()) && (d.getHours() !== 0 || d.getMinutes() !== 0)
-                ? d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })
-                : "10:00 AM";
-            } else {
-              apptTime = "10:00 AM";
-            }
-          }
-          return {
-            ...a,
-            doctor: a.doctor || a.doctor_name || "Specialist Physician",
-            doctor_name: a.doctor_name || a.doctor || "Specialist Physician",
-            disease: a.disease || a.disease_type || "Clinical Consultation",
-            disease_type: a.disease_type || a.disease || "general",
-            appointment_date: rawDate.includes("T") ? rawDate.split("T")[0] : rawDate,
-            appointment_time: apptTime,
-            status: a.status || "upcoming",
-          };
-        })
-      : INITIAL_APPOINTMENTS;
+    const appts = getStoredAppointments();
 
     if (method === "get") {
       return { status: 200, data: appts };
@@ -1153,6 +1166,7 @@ export async function handleMockRequest(config: any): Promise<MockResponse | nul
       const newAppt = {
         id: `appt-${Date.now()}`,
         patient_name: localStorage.getItem("user_name") || "RAJATH B G",
+        patient_email: localStorage.getItem("user_email") || "rajathbg123@gmail.com",
         doctor_name: body.doctor || body.doctor_name || "Dr. Ramesh Iyer",
         doctor: body.doctor || body.doctor_name || "Dr. Ramesh Iyer",
         specialty: body.disease ? `${body.disease} Specialist` : "Medical Specialist",
@@ -1165,23 +1179,44 @@ export async function handleMockRequest(config: any): Promise<MockResponse | nul
         notes: body.notes || "Requested clinical consultation",
         status: "upcoming",
       };
-      appts.unshift(newAppt);
+
+      const current = getStoredAppointments();
+      const updated = [newAppt, ...current.filter((a: any) => a.id !== newAppt.id)];
       try {
-        localStorage.setItem("vitascan_appointments_mock", JSON.stringify(appts));
+        localStorage.setItem("vitascan_appointments_mock", JSON.stringify(updated));
+
+        // Push real-time notification to doctor workspace
+        const notifKey = "vitascan_notifications_doctor";
+        const currentNotifs = JSON.parse(localStorage.getItem(notifKey) || "[]");
+        const newNotif = {
+          id: `notif-doc-${Date.now()}`,
+          type: "appointment",
+          title: "New Patient Appointment Scheduled",
+          message: `Patient ${newAppt.patient_name} scheduled a consultation with ${newAppt.doctor_name} for ${newAppt.disease} on ${newAppt.appointment_date} at ${newAppt.appointment_time}.`,
+          created_at: new Date().toISOString(),
+          is_read: false,
+          link: "/doctor/appointments",
+          linkText: "View Appointment",
+        };
+        localStorage.setItem(notifKey, JSON.stringify([newNotif, ...currentNotifs]));
       } catch {}
+
       return { status: 201, data: newAppt };
     }
   }
 
   // 12. DOCTOR WORKSPACE: Dashboard Stats
   if (path === "/doctor/dashboard" && method === "get") {
+    const appts = getStoredAppointments();
+    const upcomingCount = appts.filter((a: any) => a.status === "upcoming").length;
+    const allReports = getStoredReports();
     return {
       status: 200,
       data: {
-        today_appointments: 4,
-        total_patients: 28,
-        pending_reports: 3,
-        total_consultations: 19,
+        today_appointments: upcomingCount,
+        total_patients: Math.max(new Set(appts.map((a: any) => a.patient_name)).size, 1),
+        pending_reports: allReports.filter((r: any) => !r.approved).length,
+        total_consultations: appts.length + 12,
       },
     };
   }
@@ -1190,40 +1225,77 @@ export async function handleMockRequest(config: any): Promise<MockResponse | nul
   if (path === "/doctor/appointments" && method === "get") {
     return {
       status: 200,
-      data: INITIAL_APPOINTMENTS,
+      data: getStoredAppointments(),
     };
   }
 
   // 14. DOCTOR WORKSPACE: Patients List
   if (path === "/doctor/patients" && method === "get") {
+    const appts = getStoredAppointments();
+    const registeredUsers = getMockUsers().filter((u: any) => u.role === "PATIENT");
+
+    const patientMap = new Map();
+
+    const basePatients = [
+      {
+        patient_id: "pat-1",
+        full_name: "RAJATH B G",
+        email: "rajathbg123@gmail.com",
+        gender: "Male",
+        blood_group: "O+",
+        medical_history: "Mild cognitive concerns, family history of hypertension.",
+      },
+      {
+        patient_id: "pat-2",
+        full_name: "Anita Sharma",
+        email: "anita.sharma@example.com",
+        gender: "Female",
+        blood_group: "B+",
+        medical_history: "Breast lump evaluation, normal routine vitals.",
+      },
+      {
+        patient_id: "pat-3",
+        full_name: "Karthik Verma",
+        email: "karthik.v@example.com",
+        gender: "Male",
+        blood_group: "A+",
+        medical_history: "Acute febrile illness, suspected tropical infection.",
+      },
+    ];
+
+    basePatients.forEach((p) => patientMap.set(p.email.toLowerCase(), p));
+
+    registeredUsers.forEach((u: any) => {
+      const email = (u.email || "").toLowerCase();
+      if (!patientMap.has(email)) {
+        patientMap.set(email, {
+          patient_id: u.id || `pat-${Date.now()}`,
+          full_name: u.full_name || "Registered Patient",
+          email: u.email,
+          gender: "Not Specified",
+          blood_group: "B+",
+          medical_history: "Registered patient awaiting initial clinical screening.",
+        });
+      }
+    });
+
+    appts.forEach((a: any) => {
+      const email = (a.patient_email || "").toLowerCase();
+      if (email && !patientMap.has(email)) {
+        patientMap.set(email, {
+          patient_id: `pat-${Date.now()}`,
+          full_name: a.patient_name || "Patient",
+          email: a.patient_email,
+          gender: "Not Specified",
+          blood_group: "O+",
+          medical_history: `Appointment scheduled for ${a.disease || "Consultation"}.`,
+        });
+      }
+    });
+
     return {
       status: 200,
-      data: [
-        {
-          patient_id: "pat-1",
-          full_name: "RAJATH B G",
-          email: "rajathbg123@gmail.com",
-          gender: "Male",
-          blood_group: "O+",
-          medical_history: "Mild cognitive concerns, family history of hypertension.",
-        },
-        {
-          patient_id: "pat-2",
-          full_name: "Anita Sharma",
-          email: "anita.sharma@example.com",
-          gender: "Female",
-          blood_group: "B+",
-          medical_history: "Breast lump evaluation, normal routine vitals.",
-        },
-        {
-          patient_id: "pat-3",
-          full_name: "Karthik Verma",
-          email: "karthik.v@example.com",
-          gender: "Male",
-          blood_group: "A+",
-          medical_history: "Acute febrile illness, suspected tropical infection.",
-        },
-      ],
+      data: Array.from(patientMap.values()),
     };
   }
 
